@@ -2,8 +2,9 @@ import { useState } from "react";
 import PianoKeyboard from "./PianoKeyboard";
 import Grid from "./Grid";
 import { CUSTOM_NOTES } from "../constants";
+import useNotesWebSocket from "./useNotesWebSocket";
 
-type Note = {
+export type Note = {
   id: number;
   pitchName: string;
   step: number;
@@ -11,6 +12,9 @@ type Note = {
 
 export default function PianoRoll() {
   const [notes, setNotes] = useState<Note[]>([]);
+
+  // Hook to send notes to backend via WebSocket
+  useNotesWebSocket(notes);
 
   const addNote = (pitchName: string, step: number) => {
     setNotes((prev) => [...prev, { id: prev.length + 1, pitchName, step }]);
