@@ -16,14 +16,14 @@ export default function PianoRoll() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [playing, setPlaying] = useState(false);
   const [bpm, setBpm] = useState(120);
-
   const [playheadX, setPlayheadX] = useState(0);
+
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
-
   const nextId = useRef(1);
 
-  useNotesWebSocket(notes, playing, bpm);
+  // Connect to backend
+  const { play, stop } = useNotesWebSocket();
 
   const addNote = (pitchName: string, step: number) => {
     setNotes((prev) => [
@@ -36,57 +36,69 @@ export default function PianoRoll() {
     setNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
+  // Tapehead animation
   useEffect(() => {
     if (!playing) {
-        if (rafRef.current) {
+      if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
-        }
-        lastTimeRef.current = null;
-        return;
+      }
+      lastTimeRef.current = null;
+      return;
     }
 
     const pixelsPerSecond = (bpm / 60) * STEP_WIDTH;
 
     const tick = (time: number) => {
-        if (lastTimeRef.current == null) {
-        lastTimeRef.current = time;
-        }
+      if (lastTimeRef.current == null) lastTimeRef.current = time;
 
-        const deltaSeconds = (time - lastTimeRef.current) / 1000;
-        lastTimeRef.current = time;
+      const deltaSeconds = (time - lastTimeRef.current) / 1000;
+      lastTimeRef.current = time;
 
-        setPlayheadX((x) => x + deltaSeconds * pixelsPerSecond);
+      setPlayheadX((x) => x + deltaSeconds * pixelsPerSecond);
 
-        rafRef.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(tick);
     };
 
     rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [playing, bpm]);
+
+  const handleTogglePlay = () => {
+    if (playing) {
+      stop();
+      setPlaying(false);
+    } else {
+      play(notes, bpm);
+      setPlaying(true);
+    }
+  };
 
   const handleReset = () => {
     setPlaying(false);
     setPlayheadX(0);
   };
 
-
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <TopBar
         playing={playing}
         bpm={bpm}
-        onTogglePlay={() => setPlaying((p) => !p)}
+        onTogglePlay={handleTogglePlay}
         onReset={handleReset}
         onBpmChange={setBpm}
       />
-
       <div className="piano-roll" style={{ display: "flex", flex: 1 }}>
         <PianoKeyboard />
-        <Grid notes={notes} addNote={addNote} deleteNote={deleteNote} playheadX={playheadX} />
+        <Grid
+          notes={notes}
+          addNote={addNote}
+          deleteNote={deleteNote}
+          playheadX={playheadX}
+        />
       </div>
     </div>
   );
