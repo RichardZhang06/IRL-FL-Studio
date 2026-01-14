@@ -5,7 +5,7 @@ export default function useNotesWebSocket(notes: Note[]) {
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    ws.current = new WebSocket("ws://localhost:5173/ws/notes");
+    ws.current = new WebSocket("ws://localhost:8000/ws/notes");
 
     ws.current.onopen = () => {
       console.log("WebSocket connected");

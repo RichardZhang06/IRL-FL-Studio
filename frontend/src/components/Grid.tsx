@@ -1,3 +1,4 @@
+// Grid.tsx
 import { STEP_WIDTH, CUSTOM_NOTES } from "../constants";
 import NoteBlock from "./NoteBlock";
 
@@ -10,11 +11,10 @@ type Note = {
 type GridProps = {
   notes: Note[];
   addNote: (pitchName: string, step: number) => void;
-  updateNote: (id: number, newStep: number) => void;
   deleteNote: (id: number) => void;
 };
 
-export default function Grid({ notes, addNote, updateNote, deleteNote }: GridProps) {
+export default function Grid({ notes, addNote, deleteNote }: GridProps) {
   const numRows = CUSTOM_NOTES.length;
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -58,7 +58,6 @@ export default function Grid({ notes, addNote, updateNote, deleteNote }: GridPro
               <NoteBlock
                 key={note.id}
                 note={note}
-                onMove={updateNote}
                 onDelete={deleteNote}
               />
             ))}

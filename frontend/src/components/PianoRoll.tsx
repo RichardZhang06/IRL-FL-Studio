@@ -1,4 +1,5 @@
-import { useState } from "react";
+// PianoRoll.tsx
+import { useRef, useState } from "react";
 import PianoKeyboard from "./PianoKeyboard";
 import Grid from "./Grid";
 import { CUSTOM_NOTES } from "../constants";
@@ -12,18 +13,13 @@ export type Note = {
 
 export default function PianoRoll() {
   const [notes, setNotes] = useState<Note[]>([]);
+  const nextId = useRef(1);
 
   // Hook to send notes to backend via WebSocket
   useNotesWebSocket(notes);
 
   const addNote = (pitchName: string, step: number) => {
-    setNotes((prev) => [...prev, { id: prev.length + 1, pitchName, step }]);
-  };
-
-  const updateNote = (id: number, newStep: number) => {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, step: newStep } : n))
-    );
+    setNotes((prev) => [...prev, { id: nextId.current++, pitchName, step }]);
   };
 
   const deleteNote = (id: number) => {
@@ -36,7 +32,6 @@ export default function PianoRoll() {
       <Grid
         notes={notes}
         addNote={addNote}
-        updateNote={updateNote}
         deleteNote={deleteNote}
       />
     </div>
