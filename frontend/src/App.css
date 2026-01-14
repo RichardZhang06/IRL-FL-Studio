@@ -58,9 +58,7 @@
   position: relative;
   overflow: auto;
   background-image:
-    /* vertical lines */
     linear-gradient(to right, #444 1px, transparent 1px),
-    /* horizontal alternating row stripes */
     repeating-linear-gradient(
       to bottom,
       #2a2a2a,
@@ -72,3 +70,77 @@
   background-position: left top;
 }
 
+.topbar {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+/* Transport buttons wrapper */
+.topbar .transport {
+  display: flex;
+  gap: 8px;
+}
+
+/* Base button */
+.topbar button {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+
+/* Primary button (Start) */
+.topbar button.primary {
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  color: #fff;
+}
+
+/* Stop button */
+.topbar button.stop {
+  background: #f3f4f6;
+  border: 1px solid #ccc;
+  color: #111;
+}
+
+/* Reset button */
+.topbar button.reset {
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  color: #111;
+}
+
+/* Hover effects */
+.topbar button:hover {
+  filter: brightness(0.95);
+}
+
+.topbar button:active {
+  transform: scale(0.97);
+}
+
+/* BPM container */
+.topbar .bpm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 24px;
+}
+
+.topbar .bpm span {
+  font-weight: 800;
+}
+
+.topbar .bpm .bpm-value {
+  width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

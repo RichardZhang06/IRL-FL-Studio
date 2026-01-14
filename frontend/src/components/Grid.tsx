@@ -12,9 +12,15 @@ type GridProps = {
   notes: Note[];
   addNote: (pitchName: string, step: number) => void;
   deleteNote: (id: number) => void;
+  playheadX: number;
 };
 
-export default function Grid({ notes, addNote, deleteNote }: GridProps) {
+export default function Grid({
+  notes,
+  addNote,
+  deleteNote,
+  playheadX,
+}: GridProps) {
   const numRows = CUSTOM_NOTES.length;
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -37,33 +43,56 @@ export default function Grid({ notes, addNote, deleteNote }: GridProps) {
       style={{
         flex: 1,
         height: "100%",
-        display: "grid",
-        gridTemplateRows: `repeat(${numRows}, 1fr)`,
-        gridAutoColumns: `${STEP_WIDTH}px`,
         overflow: "auto",
         position: "relative",
       }}
       onClick={handleClick}
     >
-      {CUSTOM_NOTES.map((noteName) => {
-        const rowNotes = notes.filter((n) => n.pitchName === noteName);
+      <div
+        style={{
+          position: "absolute",
+          left: playheadX,
+          top: 0,
+          bottom: 0,
+          width: "2px",
+          background: "red",
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      />
 
-        return (
-          <div
-            key={noteName}
-            className="grid-row"
-            style={{ position: "relative", width: "100%", height: "100%" }}
-          >
-            {rowNotes.map((note) => (
-              <NoteBlock
-                key={note.id}
-                note={note}
-                onDelete={deleteNote}
-              />
-            ))}
-          </div>
-        );
-      })}
+      <div
+        style={{
+          height: "100%",
+          display: "grid",
+          gridTemplateRows: `repeat(${numRows}, 1fr)`,
+          gridAutoColumns: `${STEP_WIDTH}px`,
+        }}
+      >
+        {CUSTOM_NOTES.map((noteName) => {
+          const rowNotes = notes.filter((n) => n.pitchName === noteName);
+
+          return (
+            <div
+              key={noteName}
+              className="grid-row"
+              style={{
+                position: "relative",
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              {rowNotes.map((note) => (
+                <NoteBlock
+                  key={note.id}
+                  note={note}
+                  onDelete={deleteNote}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

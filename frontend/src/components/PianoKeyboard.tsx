@@ -1,3 +1,4 @@
+// PianoKeyboard.tsx
 import { CUSTOM_NOTES, BLACK_NOTES } from "../constants";
 
 export default function PianoKeyboard() {
