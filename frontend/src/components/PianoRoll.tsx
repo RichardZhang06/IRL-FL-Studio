@@ -73,6 +73,11 @@ export default function PianoRoll() {
     setPlayheadX(0);
   };
 
+  const handleClearNotes = () => {
+    setNotes([]);
+    nextId.current = 1;
+  };
+
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -81,6 +86,7 @@ export default function PianoRoll() {
         bpm={bpm}
         onTogglePlay={() => setPlaying((p) => !p)}
         onReset={handleReset}
+        onClearNotes={handleClearNotes}
         onBpmChange={setBpm}
       />
 

@@ -144,3 +144,22 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+.topbar button.clear {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+
+.topbar button.clear:hover {
+  background: #fecaca;
+}
+
+.topbar .title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  background: linear-gradient(90deg, #2563eb, #22c55e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
