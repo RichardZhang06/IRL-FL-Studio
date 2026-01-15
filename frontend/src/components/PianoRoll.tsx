@@ -82,6 +82,12 @@ export default function PianoRoll() {
     setPlayheadX(0);
   };
 
+  const handleClearNotes = () => {
+    setNotes([]);
+    nextId.current = 1;
+  };
+
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <TopBar
@@ -89,6 +95,7 @@ export default function PianoRoll() {
         bpm={bpm}
         onTogglePlay={handleTogglePlay}
         onReset={handleReset}
+        onClearNotes={handleClearNotes}
         onBpmChange={setBpm}
       />
       <div className="piano-roll" style={{ display: "flex", flex: 1 }}>

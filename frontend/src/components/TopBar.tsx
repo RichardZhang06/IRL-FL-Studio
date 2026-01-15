@@ -4,6 +4,7 @@ type Props = {
   bpm: number;
   onTogglePlay: () => void;
   onReset: () => void;
+  onClearNotes: () => void;
   onBpmChange: (bpm: number) => void;
 };
 
@@ -12,10 +13,14 @@ export default function TopBar({
   bpm,
   onTogglePlay,
   onReset,
+  onClearNotes,
   onBpmChange,
 }: Props) {
   return (
     <div className="topbar">
+      {/* App title */}
+      <div className="title">IRL FL Studio</div>
+
       <div className="transport">
         <button
           className={playing ? "stop" : "primary"}
@@ -26,6 +31,10 @@ export default function TopBar({
 
         <button className="reset" onClick={onReset}>
           Reset
+        </button>
+
+        <button className="clear" onClick={onClearNotes}>
+          Clear Notes
         </button>
       </div>
 
