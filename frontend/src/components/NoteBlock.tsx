@@ -1,3 +1,4 @@
+// NoteBlock.tsx
 import React from "react";
 import { STEP_WIDTH } from "../constants";
 

@@ -17,6 +17,7 @@ export default function PianoRoll() {
   const [playing, setPlaying] = useState(false);
   const [bpm, setBpm] = useState(120);
   const [playheadX, setPlayheadX] = useState(0);
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
@@ -99,12 +100,14 @@ export default function PianoRoll() {
         onBpmChange={setBpm}
       />
       <div className="piano-roll" style={{ display: "flex", flex: 1 }}>
-        <PianoKeyboard />
+        <PianoKeyboard hoveredRow={hoveredRow} />
         <Grid
           notes={notes}
           addNote={addNote}
           deleteNote={deleteNote}
           playheadX={playheadX}
+          hoveredRow={hoveredRow}
+          setHoveredRow={setHoveredRow}
         />
       </div>
     </div>

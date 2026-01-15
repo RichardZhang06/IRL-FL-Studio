@@ -1,30 +1,21 @@
 // PianoKeyboard.tsx
 import { CUSTOM_NOTES, BLACK_NOTES } from "../constants";
 
-export default function PianoKeyboard() {
+type Props = {
+  hoveredRow: number | null;
+};
+
+export default function PianoKeyboard({ hoveredRow }: Props) {
   return (
-    <div
-      className="keyboard"
-      style={{
-        width: "100px",
-        height: "100%", 
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div className="keyboard">
       {CUSTOM_NOTES.map((note, idx) => {
         const isBlack = BLACK_NOTES.has(idx);
+        const isActive = hoveredRow === idx;
 
         return (
           <div
             key={note}
-            className={`key-row ${isBlack ? "black" : "white"}`}
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            className={`key-row ${isBlack ? "black" : "white"} ${isActive ? "active" : ""}`}
           >
             <span className="key-label">{note}</span>
           </div>

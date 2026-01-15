@@ -13,6 +13,8 @@ type GridProps = {
   addNote: (pitchName: string, step: number) => void;
   deleteNote: (id: number) => void;
   playheadX: number;
+  hoveredRow: number | null;
+  setHoveredRow: (row: number | null) => void;
 };
 
 export default function Grid({
@@ -20,6 +22,8 @@ export default function Grid({
   addNote,
   deleteNote,
   playheadX,
+  hoveredRow,
+  setHoveredRow,
 }: GridProps) {
   const numRows = CUSTOM_NOTES.length;
 
@@ -69,18 +73,15 @@ export default function Grid({
           gridAutoColumns: `${STEP_WIDTH}px`,
         }}
       >
-        {CUSTOM_NOTES.map((noteName) => {
+        {CUSTOM_NOTES.map((noteName, rowIndex) => {
           const rowNotes = notes.filter((n) => n.pitchName === noteName);
 
           return (
             <div
               key={noteName}
               className="grid-row"
-              style={{
-                position: "relative",
-                width: "100%",
-                height: "100%",
-              }}
+              onMouseEnter={() => setHoveredRow(rowIndex)}
+              onMouseLeave={() => setHoveredRow(null)}
             >
               {rowNotes.map((note) => (
                 <NoteBlock
