@@ -49,7 +49,7 @@ class PlaybackEngine:
         
         # Settings
         self.bpm = 120
-        self.steps_per_beat = 16  # 16th note grid (matches STEP_WIDTH)
+        self.steps_per_beat = 1  # 1 step = 1 beat
         
         # Playback state
         self.is_playing = False
