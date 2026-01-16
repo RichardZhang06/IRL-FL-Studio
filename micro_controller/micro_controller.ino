@@ -1,10 +1,8 @@
 /*
  * IRL Studio - Teensy Guitar Controller
+ * REAL-TIME VERSION - Plays notes immediately when received
  * 
- * This skeleton receives commands from the Python backend and controls
- * the guitar hardware (solenoids for fretting, servos for plucking).
- * 
- * Fill in the TODO sections when you know your hardware setup!
+ * Backend handles timing, Teensy just executes commands immediately.
  */
 
 // ============================================================================
@@ -37,16 +35,8 @@
 
 
 // ============================================================================
-// NOTE STORAGE (No changes needed)
+// STATE
 // ============================================================================
-struct Note {
-  String pitchName;  // e.g., "E", "G", "A", "C#"
-  int step;          // Which time step (0, 4, 8, 12...)
-  int bpm;           // Tempo
-};
-
-Note noteBuffer[100];  // Store up to 100 notes
-int noteCount = 0;
 bool isPlaying = false;
 
 
@@ -71,6 +61,7 @@ void setup() {
   
   // Startup message
   Serial.println("🎸 Teensy Guitar Controller Ready!");
+  Serial.println("Mode: REAL-TIME (plays notes immediately)");
   Serial.println("Waiting for commands from backend...");
 }
 
@@ -92,13 +83,14 @@ void loop() {
 
 
 // ============================================================================
-// COMMAND PARSING (No changes needed)
+// COMMAND PARSING
 // ============================================================================
 void parseCommand(String cmd) {
   Serial.print("📨 Received: ");
   Serial.println(cmd);
   
-  // Parse NOTE command: "NOTE:E,0,120"
+  // Parse NOTE command: "NOTE:C4,0,120"
+  // This means: Play C4 RIGHT NOW (backend handles timing!)
   if (cmd.startsWith("NOTE:")) {
     String data = cmd.substring(5);  // Remove "NOTE:" prefix
     
@@ -110,31 +102,28 @@ void parseCommand(String cmd) {
     int step = data.substring(firstComma + 1, secondComma).toInt();
     int bpm = data.substring(secondComma + 1).toInt();
     
-    // Store note in buffer
-    noteBuffer[noteCount].pitchName = pitchName;
-    noteBuffer[noteCount].step = step;
-    noteBuffer[noteCount].bpm = bpm;
-    noteCount++;
-    
-    Serial.print("   Stored note #");
-    Serial.print(noteCount);
-    Serial.print(": ");
+    // PLAY NOTE IMMEDIATELY!
+    Serial.print("   Playing note: ");
     Serial.print(pitchName);
-    Serial.print(" at step ");
+    Serial.print(" (step ");
     Serial.print(step);
     Serial.print(", BPM ");
-    Serial.println(bpm);
+    Serial.print(bpm);
+    Serial.println(")");
+    
+    playNote(pitchName);
   }
   
   // Parse PLAY command
+  // This just sets state - backend will send NOTE commands at right times
   else if (cmd == "PLAY") {
-    Serial.println("▶️  Starting playback...");
-    startPlayback();
+    Serial.println("▶️  Playback started (waiting for NOTE commands...)");
+    isPlaying = true;
   }
   
   // Parse STOP command
   else if (cmd == "STOP") {
-    Serial.println("⏹️  Stopping playback...");
+    Serial.println("⏹️  Playback stopped");
     stopPlayback();
   }
   
@@ -149,99 +138,18 @@ void parseCommand(String cmd) {
 // ============================================================================
 // PLAYBACK CONTROL
 // ============================================================================
-void startPlayback() {
-  // Check if we have notes to play
-  if (noteCount == 0) {
-    Serial.println("❌ No notes to play!");
-    return;
-  }
-  
-  isPlaying = true;
-  
-  // Get BPM from first note (all notes should have same BPM)
-  int bpm = noteBuffer[0].bpm;
-  
-  // Calculate timing: milliseconds per step
-  // Formula: (60000 ms/min / BPM) / 4 steps per beat
-  // At 120 BPM: (60000 / 120) / 4 = 125 ms per step
-  float msPerStep = (60000.0 / bpm) / 4.0;
-  
-  Serial.print("🎵 Playing ");
-  Serial.print(noteCount);
-  Serial.print(" notes at ");
-  Serial.print(bpm);
-  Serial.print(" BPM (");
-  Serial.print(msPerStep);
-  Serial.println(" ms/step)");
-  
-  // Find the highest step number for timing
-  int maxStep = 0;
-  for (int i = 0; i < noteCount; i++) {
-    if (noteBuffer[i].step > maxStep) {
-      maxStep = noteBuffer[i].step;
-    }
-  }
-  
-  // Play through each step
-  unsigned long startTime = millis();
-  
-  for (int currentStep = 0; currentStep <= maxStep; currentStep++) {
-    // Check if stop was requested
-    if (!isPlaying) {
-      Serial.println("🛑 Playback stopped by user");
-      break;
-    }
-    
-    // Find and play all notes at this step
-    bool notesAtThisStep = false;
-    for (int i = 0; i < noteCount; i++) {
-      if (noteBuffer[i].step == currentStep) {
-        if (!notesAtThisStep) {
-          Serial.print("   Step ");
-          Serial.print(currentStep);
-          Serial.println(":");
-          notesAtThisStep = true;
-        }
-        playNote(noteBuffer[i].pitchName);
-      }
-    }
-    
-    // Wait until next step
-    unsigned long targetTime = startTime + (unsigned long)(currentStep * msPerStep);
-    while (millis() < targetTime) {
-      // Check for stop command during wait
-      if (Serial.available() > 0) {
-        String cmd = Serial.readStringUntil('\n');
-        cmd.trim();
-        if (cmd == "STOP") {
-          stopPlayback();
-          return;
-        }
-      }
-      // Small delay to prevent CPU hogging
-      delay(1);
-    }
-  }
-  
-  Serial.println("✅ Playback complete!");
-  isPlaying = false;
-  noteCount = 0;  // Clear buffer for next play
-}
-
-
 void stopPlayback() {
   isPlaying = false;
-  noteCount = 0;
   
   // Release all hardware
   releaseAllHardware();
   
-  Serial.println("🛑 Stopped and released all hardware");
+  Serial.println("🛑 Released all hardware");
 }
 
 
 // ============================================================================
-// NOTE PLAYBACK
+// NOTE PLAYBACK - IMMEDIATE EXECUTION
 // ============================================================================
 void playNote(String pitchName) {
   Serial.print("      🎸 Playing: ");
@@ -283,11 +191,11 @@ void mapNoteToPosition(String noteName, int &stringNum, int &fretNum) {
   
   // TODO: Fill in your note mapping
   // Example:
-  // if (noteName == "E") {
+  // if (noteName == "E4") {
   //   stringNum = 1;
   //   fretNum = 0;
   // }
-  // else if (noteName == "F") {
+  // else if (noteName == "F4") {
   //   stringNum = 1;
   //   fretNum = 1;
   // }
@@ -311,9 +219,6 @@ void mapNoteToPosition(String noteName, int &stringNum, int &fretNum) {
 void pressFret(int stringNum, int fretNum) {
   /*
    * Activate the solenoid to press down on the specified string/fret.
-   * 
-   * This turns on the appropriate solenoid to push the string down
-   * against the fretboard.
    */
   
   // TODO: Implement solenoid control
@@ -350,7 +255,6 @@ void releaseFret(int stringNum, int fretNum) {
 void releaseAllHardware() {
   /*
    * Emergency release - turn off ALL solenoids and reset servos.
-   * Called when stopping playback or on error.
    */
   
   // TODO: Turn off all solenoid pins
@@ -372,13 +276,7 @@ void releaseAllHardware() {
 // ============================================================================
 void pluckString(int stringNum) {
   /*
-   * Move the servo to pluck/strum the specified string.
-   * 
-   * This could be:
-   * - A single servo that sweeps across all strings
-   * - One servo per string
-   * - A rotating arm with a pick
-   * - Whatever mechanism you design!
+   * Move the servo to pluck the specified string.
    */
   
   // TODO: Implement servo plucking
@@ -400,15 +298,6 @@ void pluckString(int stringNum) {
  * Example helper function to map (string, fret) to pin number
  */
 // int getSolenoidPin(int stringNum, int fretNum) {
-//   // Example mapping:
-//   // String 1: pins 2-7 (frets 0-5)
-//   // String 2: pins 8-13 (frets 0-5)
-//   // String 3: pins 14-19 (frets 0-5)
-//   
 //   int basePin = 2 + (stringNum - 1) * 6;
 //   return basePin + fretNum;
 // }
-
-/*
- * Add any other helper functions you need here
- */
