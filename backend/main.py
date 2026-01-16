@@ -58,7 +58,7 @@ class PlaybackEngine:
         
         # Note queue
         self.note_queue: List[NoteSchedule] = []
-        self.played_notes = set()
+        self.played_notes = []
         
         # Timing loop
         self.loop_task = None
@@ -182,9 +182,9 @@ class PlaybackEngine:
                 # Check for notes to play
                 notes_to_play = []
                 for note in self.note_queue:
-                    if note.time_seconds <= elapsed and note not in self.played_notes:
+                    if note.time_seconds <= elapsed and note.id not in self.played_notes:
                         notes_to_play.append(note)
-                        self.played_notes.add(note)
+                        self.played_notes.append(note.id)
                 
                 # Play notes
                 for note in notes_to_play:
