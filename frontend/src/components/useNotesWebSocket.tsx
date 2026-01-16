@@ -1,6 +1,7 @@
 // useNotesWebSocket.tsx
 import { useEffect, useRef } from "react";
 import type { Note } from "./PianoRoll";
+import { STEP_WIDTH } from "../constants";
 
 export default function useNotesWebSocket() {
   const ws = useRef<WebSocket | null>(null);
@@ -36,13 +37,17 @@ export default function useNotesWebSocket() {
   }, []);
 
   // Send play command
-  const play = (notes: Note[], bpm: number) => {
+  const play = (notes: Note[], bpm: number, playheadX: number) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
+      // Convert playhead position to step
+      const currentStep = playheadX / STEP_WIDTH;
+
       ws.current.send(
         JSON.stringify({
           action: "play",
           bpm,
           notes,
+          playheadStep: currentStep,
         })
       );
     } else {

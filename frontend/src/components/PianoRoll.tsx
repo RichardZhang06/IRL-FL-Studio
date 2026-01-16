@@ -73,7 +73,7 @@ export default function PianoRoll() {
       stop();
       setPlaying(false);
     } else {
-      play(notes, bpm);
+      play(notes, bpm, playheadX);
       setPlaying(true);
     }
   };

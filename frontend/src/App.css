@@ -51,20 +51,9 @@
   transform: translateY(-50%);
   font-size: 16px;
   font-weight: 700;
-  opacity: 0;
+  opacity: 1;
   pointer-events: none;
   transition: opacity 0.12s ease;
-}
-
-.key-row .key-label {
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-
-.key-row.active .key-label,
-.key-row:hover .key-label {
-  opacity: 1;
-  font-weight: bold;
 }
 
 /* =========================
