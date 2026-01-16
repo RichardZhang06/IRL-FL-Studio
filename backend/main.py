@@ -3,9 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import serial
 import serial.tools.list_ports
-from typing import List, Dict, Optional
+from typing import List, Dict
 from dataclasses import dataclass
-from enum import Enum
 import time
 
 app = FastAPI()
@@ -13,7 +12,7 @@ app = FastAPI()
 # Allow requests from your frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # change this to your frontend origin in production
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -26,14 +25,8 @@ teensy = None
 
 
 # ==============================================================================
-# PLAYBACK ENGINE
+# PLAYBACK ENGINE - SIMPLIFIED
 # ==============================================================================
-
-class PlaybackState(Enum):
-    STOPPED = "stopped"
-    PLAYING = "playing"
-    PAUSED = "paused"
-
 
 @dataclass
 class NoteSchedule:
@@ -46,34 +39,31 @@ class NoteSchedule:
 
 class PlaybackEngine:
     """
-    Manages playhead-based timing and note scheduling.
-    Uses step-based positions to match frontend.
+    Simple playback engine with timing.
+    Only supports play and stop (matches frontend).
     """
     
     def __init__(self, teensy, websocket):
         self.teensy = teensy
         self.websocket = websocket
         
-        # Playback state
-        self.state = PlaybackState.STOPPED
+        # Settings
         self.bpm = 120
-        self.steps_per_beat = 16  # 16th note grid (matches STEP_WIDTH constant)
+        self.steps_per_beat = 16  # 16th note grid (matches STEP_WIDTH)
         
-        # Timing
-        self.playhead_step = 0.0  # Current step position
-        self.playhead_time = 0.0  # Elapsed time in seconds
-        self.start_time = 0.0     # When playback started (wall clock)
-        self.pause_time = 0.0     # Time when paused
+        # Playback state
+        self.is_playing = False
+        self.playhead_step = 0.0
+        self.start_time = 0.0
         
         # Note queue
         self.note_queue: List[NoteSchedule] = []
-        self.played_notes = set()  # Track which notes have been played
+        self.played_notes = set()
         
         # Timing loop
         self.loop_task = None
-        self.loop_interval = 0.01  # Check every 10ms
     
-    def step_to_seconds(self, step: int) -> float:
+    def step_to_seconds(self, step: float) -> float:
         """Convert step position to seconds based on BPM."""
         beat = step / self.steps_per_beat
         beat_duration = 60.0 / self.bpm
@@ -85,23 +75,18 @@ class PlaybackEngine:
         beats = seconds / beat_duration
         return beats * self.steps_per_beat
     
-    def load_notes(self, notes: List[Dict], playhead_step: float = 0.0):
+    def load_notes(self, notes: List[Dict], playhead_step: float):
         """
-        Load notes into the queue.
+        Load notes into queue.
         Only loads notes AFTER the playhead position.
-        
-        Args:
-            notes: List of note dicts from frontend
-                   Each note: { id, pitchName, step }
-            playhead_step: Starting step position
         """
         self.note_queue.clear()
         self.played_notes.clear()
         
         for note in notes:
-            # Only queue notes that are AFTER the playhead
+            # Only queue notes after playhead
             if note['step'] >= playhead_step:
-                # Calculate relative time from playhead position
+                # Calculate when to play (relative to start)
                 relative_step = note['step'] - playhead_step
                 time_seconds = self.step_to_seconds(relative_step)
                 
@@ -116,28 +101,30 @@ class PlaybackEngine:
         # Sort by time
         self.note_queue.sort(key=lambda n: n.time_seconds)
         
-        print(f"📋 Loaded {len(self.note_queue)} notes (starting from step {playhead_step:.1f})")
-        if self.note_queue:
-            print(f"   First note: {self.note_queue[0].pitchName} at step {self.note_queue[0].step}")
-            print(f"   Last note: {self.note_queue[-1].pitchName} at step {self.note_queue[-1].step}")
+        print(f"📋 Loaded {len(self.note_queue)} notes starting from step {playhead_step:.1f}")
     
-    async def start(self, playhead_step: float = 0.0):
+    async def play(self, notes: List[Dict], bpm: int, playhead_step: float):
         """
         Start playback from a specific step position.
-        
-        Args:
-            playhead_step: Step position to start from
+        Matches frontend play() function.
         """
-        if self.state == PlaybackState.PLAYING:
-            print("⚠️ Already playing")
-            return
+        if self.is_playing:
+            print("⚠️ Already playing - stopping first")
+            await self.stop()
         
-        print(f"▶️ Starting playback from step {playhead_step:.1f}")
+        print(f"\n{'='*60}")
+        print(f"▶️ PLAY from step {playhead_step:.1f} at {bpm} BPM")
+        print(f"   Total notes: {len(notes)}")
+        print(f"{'='*60}")
         
-        self.state = PlaybackState.PLAYING
+        # Update settings
+        self.bpm = bpm
         self.playhead_step = playhead_step
-        self.playhead_time = 0.0
+        self.is_playing = True
         self.start_time = time.time()
+        
+        # Load notes
+        self.load_notes(notes, playhead_step)
         
         # Send PLAY to Teensy
         if self.teensy:
@@ -148,69 +135,20 @@ class PlaybackEngine:
             "type": "playback",
             "status": "playing",
             "playheadStep": playhead_step,
-            "bpm": self.bpm
+            "bpm": bpm
         })
         
         # Start timing loop
-        if self.loop_task is None or self.loop_task.done():
-            self.loop_task = asyncio.create_task(self._timing_loop())
-    
-    async def pause(self):
-        """Pause playback at current position."""
-        if self.state != PlaybackState.PLAYING:
-            print("⚠️ Not playing")
-            return
-        
-        self.state = PlaybackState.PAUSED
-        self.pause_time = time.time()
-        
-        current_step = self.playhead_step + self.seconds_to_step(self.playhead_time)
-        
-        print(f"⏸️ Paused at step {current_step:.1f}")
-        
-        # Send STOP to Teensy
-        if self.teensy:
-            self.teensy.write(b"STOP\n")
-        
-        # Send status to frontend
-        await self.websocket.send_json({
-            "type": "playback",
-            "status": "paused",
-            "playheadStep": current_step
-        })
-    
-    async def resume(self):
-        """Resume playback from paused position."""
-        if self.state != PlaybackState.PAUSED:
-            print("⚠️ Not paused")
-            return
-        
-        print(f"▶️ Resuming from step {self.playhead_step:.1f}")
-        
-        self.state = PlaybackState.PLAYING
-        
-        # Adjust start time to account for pause duration
-        pause_duration = time.time() - self.pause_time
-        self.start_time += pause_duration
-        
-        # Send PLAY to Teensy
-        if self.teensy:
-            self.teensy.write(b"PLAY\n")
-        
-        # Send status to frontend
-        await self.websocket.send_json({
-            "type": "playback",
-            "status": "playing",
-            "playheadStep": self.playhead_step
-        })
+        self.loop_task = asyncio.create_task(self._timing_loop())
     
     async def stop(self):
-        """Stop playback and reset playhead."""
+        """
+        Stop playback and reset.
+        Matches frontend stop() function.
+        """
         print("⏹️ Stopping playback")
         
-        self.state = PlaybackState.STOPPED
-        self.playhead_time = 0.0
-        self.playhead_step = 0.0
+        self.is_playing = False
         
         # Cancel timing loop
         if self.loop_task and not self.loop_task.done():
@@ -227,56 +165,18 @@ class PlaybackEngine:
         # Send status to frontend
         await self.websocket.send_json({
             "type": "playback",
-            "status": "stopped",
-            "playheadStep": 0.0
-        })
-    
-    async def seek(self, target_step: float, notes: List[Dict]):
-        """
-        Jump to a specific step position.
-        Reloads note queue with only notes after the target position.
-        
-        Args:
-            target_step: Step position to jump to
-            notes: All notes in the sequence
-        """
-        print(f"⏩ Seeking to step {target_step:.1f}")
-        
-        was_playing = (self.state == PlaybackState.PLAYING)
-        
-        # Pause if playing
-        if was_playing:
-            self.state = PlaybackState.PAUSED
-        
-        # Update playhead position
-        self.playhead_step = target_step
-        self.playhead_time = 0.0
-        self.start_time = time.time()
-        
-        # Reload notes from new position
-        self.load_notes(notes, target_step)
-        
-        # Resume if was playing
-        if was_playing:
-            await self.resume()
-        
-        # Send status to frontend
-        await self.websocket.send_json({
-            "type": "playback",
-            "status": self.state.value,
-            "playheadStep": target_step
+            "status": "stopped"
         })
     
     async def _timing_loop(self):
         """
-        Main timing loop - runs every ~10ms.
-        Checks if any notes should be played based on playhead position.
+        Main timing loop - checks every 10ms.
+        Plays notes when playhead reaches their time.
         """
         try:
-            while self.state == PlaybackState.PLAYING:
-                # Calculate current playhead time
+            while self.is_playing:
+                # Calculate current time
                 elapsed = time.time() - self.start_time
-                self.playhead_time = elapsed
                 current_step = self.playhead_step + self.seconds_to_step(elapsed)
                 
                 # Check for notes to play
@@ -290,15 +190,15 @@ class PlaybackEngine:
                 for note in notes_to_play:
                     await self._play_note(note, current_step)
                 
-                # Send playhead update to frontend (every 100ms)
-                if int(elapsed * 10) % 10 == 0:  # Every 10th iteration
+                # Send playhead update (every 100ms)
+                if int(elapsed * 10) % 10 == 0:
                     await self.websocket.send_json({
                         "type": "playhead_update",
                         "playheadStep": current_step,
                         "time": elapsed
                     })
                 
-                # Check if sequence is complete
+                # Check if complete
                 if len(self.played_notes) >= len(self.note_queue) and self.note_queue:
                     print("✅ Sequence complete")
                     await self.stop()
@@ -308,8 +208,8 @@ class PlaybackEngine:
                     })
                     break
                 
-                # Sleep until next check
-                await asyncio.sleep(self.loop_interval)
+                # Sleep 10ms
+                await asyncio.sleep(0.01)
         
         except asyncio.CancelledError:
             print("⏹️ Timing loop cancelled")
@@ -379,22 +279,35 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     clients.append(websocket)
     
-    # Send connection status
-    await websocket.send_json({
-        "type": "connection",
-        "teensy_connected": teensy is not None
-    })
+    print(f"✅ WebSocket connected")
     
-    # Create playback engine for this client
+    # Send connection status
+    try:
+        await websocket.send_json({
+            "type": "connection",
+            "teensy_connected": teensy is not None
+        })
+        print(f"📤 Sent connection status: teensy_connected={teensy is not None}")
+    except Exception as e:
+        print(f"⚠️ Error sending connection status: {e}")
+    
+    # Create playback engine
     engine = None
     if teensy:
         engine = PlaybackEngine(teensy, websocket)
+        print("✅ Playback engine created")
+    else:
+        print("⚠️ No Teensy - playback engine not created")
     
     try:
         while True:
+            print("📥 Waiting for message from frontend...")
             data = await websocket.receive_json()
+            print(f"📨 Received: {data}")
             
+            # Check if engine exists
             if not engine:
+                print("❌ No engine - Teensy not connected")
                 await websocket.send_json({
                     "type": "error",
                     "message": "Teensy not connected"
@@ -402,72 +315,39 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
             
             # ============================================================
-            # PLAY - Start from specific position
+            # PLAY - Start playback
             # ============================================================
             if data.get("action") == "play":
                 notes = data.get("notes", [])
                 bpm = data.get("bpm", 120)
-                playhead_step = data.get("playheadStep", 0.0)  # Step position from frontend
+                playhead_step = data.get("playheadStep", 0.0)
                 
-                print(f"\n{'='*60}")
-                print(f"▶️ PLAY from step {playhead_step:.1f} at {bpm} BPM")
-                print(f"   Total notes: {len(notes)}")
-                print(f"{'='*60}")
-                
-                engine.bpm = bpm
-                engine.load_notes(notes, playhead_step)
-                await engine.start(playhead_step)
+                await engine.play(notes, bpm, playhead_step)
             
             # ============================================================
-            # PAUSE - Pause at current position
-            # ============================================================
-            elif data.get("action") == "pause":
-                await engine.pause()
-            
-            # ============================================================
-            # RESUME - Continue from paused position
-            # ============================================================
-            elif data.get("action") == "resume":
-                await engine.resume()
-            
-            # ============================================================
-            # STOP - Stop and reset
+            # STOP - Stop playback
             # ============================================================
             elif data.get("action") == "stop":
                 await engine.stop()
             
             # ============================================================
-            # SEEK - Jump to position (scrubbing)
+            # Unknown action
             # ============================================================
-            elif data.get("action") == "seek":
-                target_step = data.get("playheadStep", 0.0)
-                notes = data.get("notes", [])
-                await engine.seek(target_step, notes)
-            
-            # ============================================================
-            # UPDATE BPM - Change tempo
-            # ============================================================
-            elif data.get("action") == "set_bpm":
-                new_bpm = data.get("bpm", 120)
-                print(f"🎵 BPM changed: {engine.bpm} → {new_bpm}")
-                engine.bpm = new_bpm
-                await websocket.send_json({
-                    "type": "bpm_updated",
-                    "bpm": new_bpm
-                })
-            
-            # Original behavior - broadcast to other clients
             else:
-                print("Received:", data)
+                print(f"⚠️ Unknown action: {data.get('action')}")
+                # Broadcast to other clients (if any)
                 for client in clients:
                     if client != websocket:
                         await client.send_json(data)
     
     except Exception as e:
         print(f"❌ WebSocket error: {e}")
+        import traceback
+        traceback.print_exc()
     
     finally:
         # Cleanup
+        print("🔌 Cleaning up...")
         if engine:
             await engine.stop()
         clients.remove(websocket)
