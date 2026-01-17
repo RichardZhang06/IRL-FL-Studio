@@ -7,7 +7,7 @@ export const NUM_STEPS = 64;
 // MIDI pitch range for exactly 12 notes (one octave)
 export const MIN_PITCH = 57;  // A
 export const MAX_PITCH = 68;  // A (next octave)
-export const NUM_PITCHES = MAX_PITCH - MIN_PITCH + 1; // 12
+export const NUM_PITCHES = MAX_PITCH - MIN_PITCH + 1;
 
 // Custom 12-note sequence
 export const CUSTOM_NOTES = [

@@ -1,5 +1,5 @@
 // Grid.tsx
-import { STEP_WIDTH, CUSTOM_NOTES, NUM_STEPS } from "../constants";
+import { STEP_WIDTH, CUSTOM_NOTES, NOTE_GROUPS } from "../constants";
 import NoteBlock from "./NoteBlock";
 
 type Note = {
@@ -77,6 +77,10 @@ export default function Grid({
           const rowNotes = notes.filter((n) => n.pitchName === noteName);
           const isEvenRow = rowIndex % 2 === 0;
 
+          const isGroupBoundary = NOTE_GROUPS.some(group => 
+            group[0] === noteName && rowIndex > 0
+          );
+
           return (
             <div
               key={noteName}
@@ -90,6 +94,19 @@ export default function Grid({
                 backgroundSize: `${STEP_WIDTH}px 100%`,
               }}
             >
+              {isGroupBoundary && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: "1px",
+                    backgroundColor: "#444",
+                    zIndex: 5,
+                  }}
+                />
+              )}
               {rowNotes.map((note) => (
                 <NoteBlock
                   key={note.id}
