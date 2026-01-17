@@ -1,4 +1,5 @@
 // Grid.tsx
+import { forwardRef } from "react";
 import { STEP_WIDTH, CUSTOM_NOTES, NOTE_GROUPS } from "../constants";
 import NoteBlock from "./NoteBlock";
 
@@ -16,13 +17,13 @@ type GridProps = {
   numSteps: number;
 };
 
-export default function Grid({
+const Grid = forwardRef<HTMLDivElement, GridProps>(({
   notes,
   addNote,
   deleteNote,
   playheadX,
   numSteps,
-}: GridProps) {
+}, ref) => {
   const numRows = CUSTOM_NOTES.length;
   const gridWidth = numSteps * STEP_WIDTH;
 
@@ -42,6 +43,7 @@ export default function Grid({
 
   return (
     <div
+      ref={ref}
       className="grid"
       style={{
         flex: 1,
@@ -120,4 +122,8 @@ export default function Grid({
       </div>
     </div>
   );
-}
+});
+
+Grid.displayName = "Grid";
+
+export default Grid;

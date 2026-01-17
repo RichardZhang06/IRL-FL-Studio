@@ -1,6 +1,6 @@
 // PianoRoll.tsx
 import { useEffect, useRef, useState } from "react";
-import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS, findNoteGroup } from "../constants";
+import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS, findNoteGroup, BEATS_AHEAD } from "../constants";
 import PianoKeyboard from "./PianoKeyboard";
 import Grid from "./Grid";
 import TopBar from "./TopBar";
@@ -22,6 +22,7 @@ export default function PianoRoll() {
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
   const nextId = useRef(1);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   // Connect to backend
   const { play, stop } = useNotesWebSocket();
@@ -83,6 +84,14 @@ export default function PianoRoll() {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [playing, bpm, numSteps]);
+  
+  useEffect(() => {
+    if (gridRef.current && playing) {
+      const beatsAhead = BEATS_AHEAD; 
+      const scrollTarget = playheadX - (beatsAhead * STEP_WIDTH);
+      gridRef.current.scrollLeft = Math.max(0, scrollTarget);
+    }
+  }, [playheadX, playing]);
 
   const handleTogglePlay = () => {
     if (playing) {
@@ -156,6 +165,7 @@ export default function PianoRoll() {
       <div className="piano-roll" style={{ display: "flex", flex: 1 }}>
         <PianoKeyboard />
         <Grid
+          ref={gridRef}
           notes={notes}
           addNote={addNote}
           deleteNote={deleteNote}
