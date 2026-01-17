@@ -42,14 +42,18 @@ export default function useNotesWebSocket() {
       // Convert playhead position to step
       const currentStep = playheadX / STEP_WIDTH;
 
+      // Filter out notes that are behind the playhead
+      const filteredNotes = notes.filter((note) => note.step >= currentStep);
+
       ws.current.send(
         JSON.stringify({
           action: "play",
           bpm,
-          notes,
+          notes: filteredNotes,
           playheadStep: currentStep,
         })
       );
+      console.log(`Sent ${filteredNotes.length} notes (filtered ${notes.length - filteredNotes.length} behind playhead)`);
     } else {
       console.warn("WebSocket not connected yet");
     }
