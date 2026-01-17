@@ -1,4 +1,5 @@
 // TopBar.tsx
+
 type Props = {
   playing: boolean;
   bpm: number;
@@ -6,6 +7,8 @@ type Props = {
   onReset: () => void;
   onClearNotes: () => void;
   onBpmChange: (bpm: number) => void;
+  onAdjustSteps: (delta: number) => void;
+  numSteps: number;
 };
 
 export default function TopBar({
@@ -15,6 +18,8 @@ export default function TopBar({
   onReset,
   onClearNotes,
   onBpmChange,
+  onAdjustSteps,
+  numSteps,
 }: Props) {
   return (
     <div className="topbar">
@@ -48,6 +53,15 @@ export default function TopBar({
           onChange={(e) => onBpmChange(Number(e.target.value))}
         />
         <span className="bpm-value">{bpm}</span>
+      </div>
+
+      {/* Grid Size Controls */}
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <button onClick={() => onAdjustSteps(-16)}>-16 Steps</button>
+        <span style={{ fontWeight: 600, minWidth: "80px", textAlign: "center" }}>
+          {numSteps} steps
+        </span>
+        <button onClick={() => onAdjustSteps(16)}>+16 Steps</button>
       </div>
     </div>
   );

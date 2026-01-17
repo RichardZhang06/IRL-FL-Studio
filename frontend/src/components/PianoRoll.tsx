@@ -1,6 +1,6 @@
 // PianoRoll.tsx
 import { useEffect, useRef, useState } from "react";
-import { STEP_WIDTH } from "../constants";
+import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS } from "../constants";
 import PianoKeyboard from "./PianoKeyboard";
 import Grid from "./Grid";
 import TopBar from "./TopBar";
@@ -17,6 +17,7 @@ export default function PianoRoll() {
   const [playing, setPlaying] = useState(false);
   const [bpm, setBpm] = useState(120);
   const [playheadX, setPlayheadX] = useState(0);
+  const [numSteps, setNumSteps] = useState(INITIAL_NUM_STEPS); 
 
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
@@ -36,7 +37,6 @@ export default function PianoRoll() {
     setNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
-  // Tapehead animation
   useEffect(() => {
     if (!playing) {
       if (rafRef.current) {
@@ -48,6 +48,7 @@ export default function PianoRoll() {
     }
 
     const pixelsPerSecond = (bpm / 60) * STEP_WIDTH;
+    const maxPlayheadX = numSteps * STEP_WIDTH; 
 
     const tick = (time: number) => {
       if (lastTimeRef.current == null) lastTimeRef.current = time;
@@ -55,7 +56,11 @@ export default function PianoRoll() {
       const deltaSeconds = (time - lastTimeRef.current) / 1000;
       lastTimeRef.current = time;
 
-      setPlayheadX((x) => x + deltaSeconds * pixelsPerSecond);
+      setPlayheadX((x) => {
+        const newX = x + deltaSeconds * pixelsPerSecond;
+        // Wrap around when reaching the end
+        return newX >= maxPlayheadX ? 0 : newX;
+      });
 
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -65,7 +70,7 @@ export default function PianoRoll() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [playing, bpm]);
+  }, [playing, bpm, numSteps]);
 
   const handleTogglePlay = () => {
     if (playing) {
@@ -87,6 +92,9 @@ export default function PianoRoll() {
     nextId.current = 1;
   };
 
+  const handleAdjustSteps = (delta: number) => {
+    setNumSteps((prev) => Math.max(16, prev + delta)); // Minimum 16 steps
+  };
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -97,6 +105,8 @@ export default function PianoRoll() {
         onReset={handleReset}
         onClearNotes={handleClearNotes}
         onBpmChange={setBpm}
+        onAdjustSteps={handleAdjustSteps}
+        numSteps={numSteps}
       />
       <div className="piano-roll" style={{ display: "flex", flex: 1 }}>
         <PianoKeyboard />
@@ -105,6 +115,7 @@ export default function PianoRoll() {
           addNote={addNote}
           deleteNote={deleteNote}
           playheadX={playheadX}
+          numSteps={numSteps}
         />
       </div>
     </div>

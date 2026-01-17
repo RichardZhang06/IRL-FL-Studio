@@ -13,6 +13,7 @@ type GridProps = {
   addNote: (pitchName: string, step: number) => void;
   deleteNote: (id: number) => void;
   playheadX: number;
+  numSteps: number;
 };
 
 export default function Grid({
@@ -20,9 +21,10 @@ export default function Grid({
   addNote,
   deleteNote,
   playheadX,
+  numSteps,
 }: GridProps) {
   const numRows = CUSTOM_NOTES.length;
-  const gridWidth = NUM_STEPS * STEP_WIDTH;
+  const gridWidth = numSteps * STEP_WIDTH;
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const grid = e.currentTarget;
