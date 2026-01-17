@@ -243,8 +243,11 @@ def find_arduino():
     ports = serial.tools.list_ports.comports()
     for port in ports:
         desc = port.description.lower()
-        # Look for common Arduino identifiers
-        if any(x in desc for x in ["arduino", "ch340", "usb serial", "usbserial", "usbmodem"]):
+        device = port.device.lower()
+        # Check both description and device path
+        if any(x in desc for x in ["arduino", "ch340", "usb serial", "iousbhostdevice"]):
+            return port.device
+        if "usbmodem" in device or "usbserial" in device:
             return port.device
     return None
 
