@@ -9,6 +9,8 @@ type Props = {
   onBpmChange: (bpm: number) => void;
   onAdjustSteps: (delta: number) => void;
   numSteps: number;
+  onSavePreset: () => void;
+  onLoadPreset: () => void;
 };
 
 export default function TopBar({
@@ -20,6 +22,8 @@ export default function TopBar({
   onBpmChange,
   onAdjustSteps,
   numSteps,
+  onSavePreset,
+  onLoadPreset,
 }: Props) {
   return (
     <div className="topbar">
@@ -62,6 +66,11 @@ export default function TopBar({
           {numSteps} steps
         </span>
         <button onClick={() => onAdjustSteps(16)}>+16 Steps</button>
+      </div>
+      {/* Presets */}
+      <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
+        <button onClick={onSavePreset}>Save Preset</button>
+        <button onClick={onLoadPreset}>Load Preset</button>
       </div>
     </div>
   );

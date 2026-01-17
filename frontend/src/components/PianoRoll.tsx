@@ -1,6 +1,6 @@
 // PianoRoll.tsx
 import { useEffect, useRef, useState } from "react";
-import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS } from "../constants";
+import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS, findNoteGroup } from "../constants";
 import PianoKeyboard from "./PianoKeyboard";
 import Grid from "./Grid";
 import TopBar from "./TopBar";
@@ -27,10 +27,22 @@ export default function PianoRoll() {
   const { play, stop } = useNotesWebSocket();
 
   const addNote = (pitchName: string, step: number) => {
-    setNotes((prev) => [
-      ...prev,
-      { id: nextId.current++, pitchName, step },
-    ]);
+    const noteGroup = findNoteGroup(pitchName);
+  
+    setNotes((prev) => {
+      // If this note belongs to a group, remove any other notes in the same group at this step
+      let filteredNotes = prev;
+      if (noteGroup) {
+        filteredNotes = prev.filter(note => 
+          !(note.step === step && noteGroup.includes(note.pitchName))
+        );
+      }
+    
+      return [
+        ...filteredNotes,
+        { id: nextId.current++, pitchName, step },
+      ];
+    });
   };
 
   const deleteNote = (id: number) => {
@@ -96,7 +108,38 @@ export default function PianoRoll() {
     setNumSteps((prev) => Math.max(64, prev + delta)); 
   };
 
-  return (
+  const handleSavePreset = () => {
+    const preset = {
+      notes,
+      bpm,
+      numSteps,
+    };
+  
+    // Save to localStorage
+    localStorage.setItem('pianoRollPreset', JSON.stringify(preset));
+    alert('Preset saved!');
+  };
+
+  const handleLoadPreset = () => {
+    const saved = localStorage.getItem('pianoRollPreset');
+    if (saved) {
+      const preset = JSON.parse(saved);
+      setNotes(preset.notes);
+      setBpm(preset.bpm);
+      setNumSteps(preset.numSteps);
+    
+      // Update nextId to avoid conflicts
+      const maxId = preset.notes.reduce((max: number, note: Note) => 
+        Math.max(max, note.id), 0);
+      nextId.current = maxId + 1;
+    
+      alert('Preset loaded!');
+    } else {
+      alert('No preset found!');
+    }
+  };
+
+    return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <TopBar
         playing={playing}
@@ -107,6 +150,8 @@ export default function PianoRoll() {
         onBpmChange={setBpm}
         onAdjustSteps={handleAdjustSteps}
         numSteps={numSteps}
+        onSavePreset={handleSavePreset}
+        onLoadPreset={handleLoadPreset}
       />
       <div className="piano-roll" style={{ display: "flex", flex: 1 }}>
         <PianoKeyboard />

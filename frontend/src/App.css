@@ -38,8 +38,8 @@
   background: linear-gradient(
     to right,
     #222 0%,
-    #222 66%,
-    #eee 66%,
+    #222 50%,
+    #eee 50%,
     #eee 100%
   );
 }
