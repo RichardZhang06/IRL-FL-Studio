@@ -1,303 +1,164 @@
 /*
- * IRL Studio - Teensy Guitar Controller
- * REAL-TIME VERSION - Plays notes immediately when received
+ * IRL Studio - Arduino Uno Guitar Controller
+ * Backend handles timing, Arduino executes commands immediately.
  * 
- * Backend handles timing, Teensy just executes commands immediately.
+ * Commands from backend:
+ *   N:C4    - Play note C4 now
+ *   PLAY    - Playback started
+ *   STOP    - Stop and release all
  */
 
-// ============================================================================
-// TODO: DEFINE YOUR HARDWARE PINS
-// ============================================================================
-// Example:
-// #define SOLENOID_STRING1_FRET0  2
-// #define SOLENOID_STRING1_FRET1  3
-// #define SERVO_PLUCK_PIN  20
+ #include <Servo.h>
 
-// Your pin definitions go here:
-
-
-// ============================================================================
-// TODO: INCLUDE REQUIRED LIBRARIES
-// ============================================================================
-// Example:
-// #include <Servo.h>
-
-// Your includes go here:
-
-
-// ============================================================================
-// TODO: DECLARE GLOBAL HARDWARE OBJECTS
-// ============================================================================
-// Example:
-// Servo pluckServo;
-
-// Your hardware objects go here:
-
-
-// ============================================================================
-// STATE
-// ============================================================================
-bool isPlaying = false;
-
-
-// ============================================================================
-// SETUP - Runs once on startup
-// ============================================================================
-void setup() {
-  // Initialize serial (DO NOT CHANGE - must match backend!)
-  Serial.begin(115200);
-  
-  // TODO: Initialize your servo(s)
-  // Example:
-  // pluckServo.attach(SERVO_PLUCK_PIN);
-  
-  
-  // TODO: Initialize all solenoid pins as OUTPUT
-  // Example:
-  // pinMode(SOLENOID_STRING1_FRET0, OUTPUT);
-  // pinMode(SOLENOID_STRING1_FRET1, OUTPUT);
-  // ... etc
-  
-  
-  // Startup message
-  Serial.println("🎸 Teensy Guitar Controller Ready!");
-  Serial.println("Mode: REAL-TIME (plays notes immediately)");
-  Serial.println("Waiting for commands from backend...");
-}
-
-
-// ============================================================================
-// MAIN LOOP - Runs forever
-// ============================================================================
-void loop() {
-  // Check for incoming serial data from backend
-  if (Serial.available() > 0) {
-    String command = Serial.readStringUntil('\n');
-    command.trim();
-    
-    parseCommand(command);
-  }
-  
-  // Add any other continuous tasks here if needed
-}
-
-
-// ============================================================================
-// COMMAND PARSING
-// ============================================================================
-void parseCommand(String cmd) {
-  Serial.print("📨 Received: ");
-  Serial.println(cmd);
-  
-  // Parse NOTE command: "NOTE:C4,0,120"
-  // This means: Play C4 RIGHT NOW (backend handles timing!)
-  if (cmd.startsWith("NOTE:")) {
-    String data = cmd.substring(5);  // Remove "NOTE:" prefix
-    
-    // Split by commas
-    int firstComma = data.indexOf(',');
-    int secondComma = data.indexOf(',', firstComma + 1);
-    
-    String pitchName = data.substring(0, firstComma);
-    int step = data.substring(firstComma + 1, secondComma).toInt();
-    int bpm = data.substring(secondComma + 1).toInt();
-    
-    // PLAY NOTE IMMEDIATELY!
-    Serial.print("   Playing note: ");
-    Serial.print(pitchName);
-    Serial.print(" (step ");
-    Serial.print(step);
-    Serial.print(", BPM ");
-    Serial.print(bpm);
-    Serial.println(")");
-    
-    playNote(pitchName);
-  }
-  
-  // Parse PLAY command
-  // This just sets state - backend will send NOTE commands at right times
-  else if (cmd == "PLAY") {
-    Serial.println("▶️  Playback started (waiting for NOTE commands...)");
-    isPlaying = true;
-  }
-  
-  // Parse STOP command
-  else if (cmd == "STOP") {
-    Serial.println("⏹️  Playback stopped");
-    stopPlayback();
-  }
-  
-  // Unknown command
-  else {
-    Serial.print("❓ Unknown command: ");
-    Serial.println(cmd);
-  }
-}
-
-
-// ============================================================================
-// PLAYBACK CONTROL
-// ============================================================================
-void stopPlayback() {
-  isPlaying = false;
-  
-  // Release all hardware
-  releaseAllHardware();
-  
-  Serial.println("🛑 Released all hardware");
-}
-
-
-// ============================================================================
-// NOTE PLAYBACK - IMMEDIATE EXECUTION
-// ============================================================================
-void playNote(String pitchName) {
-  Serial.print("      🎸 Playing: ");
-  Serial.println(pitchName);
-  
-  // Step 1: Map note name to guitar position
-  int stringNum, fretNum;
-  mapNoteToPosition(pitchName, stringNum, fretNum);
-  
-  // Step 2: Press the fret (activate solenoid)
-  pressFret(stringNum, fretNum);
-  
-  // Step 3: Wait for solenoid to fully press (tune this delay!)
-  delay(50);
-  
-  // Step 4: Pluck the string (move servo)
-  pluckString(stringNum);
-  
-  // Step 5: Let note ring (tune this delay!)
-  delay(100);
-  
-  // Step 6: Release the fret (deactivate solenoid)
-  releaseFret(stringNum, fretNum);
-}
-
-
-// ============================================================================
-// TODO: NOTE MAPPING
-// ============================================================================
-void mapNoteToPosition(String noteName, int &stringNum, int &fretNum) {
-  /*
-   * Map note names to guitar string and fret positions.
-   * 
-   * Example for standard 3-string tuning (high to low):
-   * String 1 (E4): E, F, F#, G, G#, A (frets 0-5)
-   * String 2 (B3): B, C, C#, D, D#, E (frets 0-5)
-   * String 3 (G3): G, G#, A, A#, B, C (frets 0-5)
-   */
-  
-  // TODO: Fill in your note mapping
-  // Example:
-  // if (noteName == "E4") {
-  //   stringNum = 1;
-  //   fretNum = 0;
-  // }
-  // else if (noteName == "F4") {
-  //   stringNum = 1;
-  //   fretNum = 1;
-  // }
-  // ... etc
-  
-  // Default fallback (remove this when you add real mapping)
-  Serial.println("         ⚠️  WARNING: Note mapping not implemented!");
-  stringNum = 1;
-  fretNum = 0;
-  
-  Serial.print("         → String ");
-  Serial.print(stringNum);
-  Serial.print(", Fret ");
-  Serial.println(fretNum);
-}
-
-
-// ============================================================================
-// TODO: FRETTING CONTROL (Solenoids)
-// ============================================================================
-void pressFret(int stringNum, int fretNum) {
-  /*
-   * Activate the solenoid to press down on the specified string/fret.
-   */
-  
-  // TODO: Implement solenoid control
-  // Example:
-  // int pin = getSolenoidPin(stringNum, fretNum);
-  // digitalWrite(pin, HIGH);
-  
-  Serial.print("         🔌 Press fret (String ");
-  Serial.print(stringNum);
-  Serial.print(", Fret ");
-  Serial.print(fretNum);
-  Serial.println(")");
-}
-
-
-void releaseFret(int stringNum, int fretNum) {
-  /*
-   * Deactivate the solenoid to release the string.
-   */
-  
-  // TODO: Implement solenoid release
-  // Example:
-  // int pin = getSolenoidPin(stringNum, fretNum);
-  // digitalWrite(pin, LOW);
-  
-  Serial.print("         🔓 Release fret (String ");
-  Serial.print(stringNum);
-  Serial.print(", Fret ");
-  Serial.print(fretNum);
-  Serial.println(")");
-}
-
-
-void releaseAllHardware() {
-  /*
-   * Emergency release - turn off ALL solenoids and reset servos.
-   */
-  
-  // TODO: Turn off all solenoid pins
-  // Example:
-  // for (int pin = 2; pin <= 20; pin++) {
-  //   digitalWrite(pin, LOW);
-  // }
-  
-  // TODO: Reset servo(s) to rest position
-  // Example:
-  // pluckServo.write(0);
-  
-  Serial.println("         🔧 Released all hardware");
-}
-
-
-// ============================================================================
-// TODO: PLUCKING CONTROL (Servo)
-// ============================================================================
-void pluckString(int stringNum) {
-  /*
-   * Move the servo to pluck the specified string.
-   */
-  
-  // TODO: Implement servo plucking
-  // Example:
-  // pluckServo.write(90);  // Move to pluck position
-  // delay(50);
-  // pluckServo.write(0);   // Return to rest
-  
-  Serial.print("         🎼 Pluck string ");
-  Serial.println(stringNum);
-}
-
-
-// ============================================================================
-// TODO: HELPER FUNCTIONS (Optional)
-// ============================================================================
-
-/*
- * Example helper function to map (string, fret) to pin number
- */
-// int getSolenoidPin(int stringNum, int fretNum) {
-//   int basePin = 2 + (stringNum - 1) * 6;
-//   return basePin + fretNum;
-// }
+ // ============================================================================
+ // PIN DEFINITIONS - TODO: Define your pins
+ // ============================================================================
+ // Servo pins (for plucking each string)
+ const byte SERVO_PINS[6] = {2, 3, 4, 5, 6, 7};
+ 
+ // Solenoid pins - TODO: Add your solenoid pin definitions
+ // Example: const byte FRET_PINS[6][5] = { {8,9,10,11,12}, ... };
+ 
+ // ============================================================================
+ // HARDWARE
+ // ============================================================================
+ Servo servos[6];
+ bool isPlaying = false;
+ 
+ // Servo positions
+ const byte SERVO_REST = 90;
+ const byte SERVO_PLUCK = 60;
+ 
+ // ============================================================================
+ // SETUP
+ // ============================================================================
+ void setup() {
+   Serial.begin(9600);
+   
+   // Attach servos
+   for (int i = 0; i < 6; i++) {
+     servos[i].attach(SERVO_PINS[i]);
+     servos[i].write(SERVO_REST);
+   }
+   
+   // TODO: Initialize solenoid pins as OUTPUT
+   // for (int i = 0; i < NUM_SOLENOIDS; i++) {
+   //   pinMode(solenoidPin[i], OUTPUT);
+   // }
+   
+   Serial.println(F("Ready"));
+ }
+ 
+ // ============================================================================
+ // MAIN LOOP
+ // ============================================================================
+ void loop() {
+   if (Serial.available()) {
+     String cmd = Serial.readStringUntil('\n');
+     cmd.trim();
+     
+     // Note command: N:C4
+     if (cmd.startsWith("N:")) {
+       String note = cmd.substring(2);
+       playNote(note);
+     }
+     // Play command
+     else if (cmd == "PLAY") {
+       isPlaying = true;
+       Serial.println(F("Playing"));
+     }
+     // Stop command
+     else if (cmd == "STOP") {
+       isPlaying = false;
+       releaseAll();
+       Serial.println(F("Stopped"));
+     }
+   }
+ }
+ 
+ // ============================================================================
+ // NOTE PLAYBACK
+ // ============================================================================
+ void playNote(String note) {
+   Serial.print(F("N:")); Serial.println(note);
+   
+   // Get string and fret from note name
+   int str, fret;
+   mapNote(note, str, fret);
+   
+   if (str < 0 || str > 5) return;  // Invalid
+   
+   // TODO: Press fret (activate solenoid)
+   // pressFret(str, fret);
+   // delay(30);  // Wait for solenoid
+   
+   // Pluck string
+   pluck(str);
+   
+   // TODO: Release fret after note rings
+   // delay(100);
+   // releaseFret(str, fret);
+ }
+ 
+ // ============================================================================
+ // NOTE MAPPING - TODO: Fill in your mapping
+ // ============================================================================
+ void mapNote(String note, int &str, int &fret) {
+   /*
+    * Map note names to string (0-5) and fret (0-4)
+    * 
+    * Example standard tuning:
+    * String 0 (E4): E4=0, F4=1, F#4=2, G4=3, G#4=4
+    * String 1 (B3): B3=0, C4=1, C#4=2, D4=3, D#4=4
+    * ... etc
+    */
+   
+   // TODO: Add your note mappings
+   // Example:
+   // if (note == "E4") { str = 0; fret = 0; return; }
+   // if (note == "F4") { str = 0; fret = 1; return; }
+   // if (note == "B3") { str = 1; fret = 0; return; }
+   
+   // Default fallback - string 0, open
+   str = 0;
+   fret = 0;
+ }
+ 
+ // ============================================================================
+ // SERVO CONTROL (Plucking)
+ // ============================================================================
+ void pluck(int str) {
+   if (str < 0 || str > 5) return;
+   
+   servos[str].write(SERVO_PLUCK);
+   delay(50);
+   servos[str].write(SERVO_REST);
+ }
+ 
+ // ============================================================================
+ // SOLENOID CONTROL (Fretting) - TODO: Implement
+ // ============================================================================
+ void pressFret(int str, int fret) {
+   // TODO: Activate solenoid for string/fret
+   // int pin = getFretPin(str, fret);
+   // digitalWrite(pin, HIGH);
+ }
+ 
+ void releaseFret(int str, int fret) {
+   // TODO: Deactivate solenoid
+   // int pin = getFretPin(str, fret);
+   // digitalWrite(pin, LOW);
+ }
+ 
+ void releaseAll() {
+   // Reset all servos
+   for (int i = 0; i < 6; i++) {
+     servos[i].write(SERVO_REST);
+   }
+   
+   // TODO: Release all solenoids
+   // for (int i = 0; i < NUM_SOLENOIDS; i++) {
+   //   digitalWrite(solenoidPin[i], LOW);
+   // }
+ }
+ 

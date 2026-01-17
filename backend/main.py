@@ -20,8 +20,8 @@ app.add_middleware(
 # store connected clients
 clients = []
 
-# Teensy serial connection
-teensy = None
+# Arduino serial connection
+arduino = None
 
 
 # ==============================================================================
@@ -43,8 +43,8 @@ class PlaybackEngine:
     Only supports play and stop (matches frontend).
     """
     
-    def __init__(self, teensy, websocket):
-        self.teensy = teensy
+    def __init__(self, arduino, websocket):
+        self.arduino = arduino
         self.websocket = websocket
         
         # Settings
@@ -101,7 +101,7 @@ class PlaybackEngine:
         # Sort by time
         self.note_queue.sort(key=lambda n: n.time_seconds)
         
-        print(f"📋 Loaded {len(self.note_queue)} notes starting from step {playhead_step:.1f}")
+        print(f"Loaded {len(self.note_queue)} notes starting from step {playhead_step:.1f}")
     
     async def play(self, notes: List[Dict], bpm: int, playhead_step: float):
         """
@@ -109,12 +109,12 @@ class PlaybackEngine:
         Matches frontend play() function.
         """
         if self.is_playing:
-            print("⚠️ Already playing - stopping first")
+            print("Already playing - stopping first")
             await self.stop()
         
         print(f"\n{'='*60}")
-        print(f"▶️ PLAY from step {playhead_step:.1f} at {bpm} BPM")
-        print(f"   Total notes: {len(notes)}")
+        print(f"PLAY from step {playhead_step:.1f} at {bpm} BPM")
+        print(f"Total notes: {len(notes)}")
         print(f"{'='*60}")
         
         # Update settings
@@ -126,9 +126,9 @@ class PlaybackEngine:
         # Load notes
         self.load_notes(notes, playhead_step)
         
-        # Send PLAY to Teensy
-        if self.teensy:
-            self.teensy.write(b"PLAY\n")
+        # Send PLAY to Arduino
+        if self.arduino:
+            self.arduino.write(b"PLAY\n")
         
         # Send status to frontend
         await self.websocket.send_json({
@@ -146,7 +146,7 @@ class PlaybackEngine:
         Stop playback and reset.
         Matches frontend stop() function.
         """
-        print("⏹️ Stopping playback")
+        print("Stopping playback")
         
         self.is_playing = False
         
@@ -158,9 +158,9 @@ class PlaybackEngine:
             except asyncio.CancelledError:
                 pass
         
-        # Send STOP to Teensy
-        if self.teensy:
-            self.teensy.write(b"STOP\n")
+        # Send STOP to Arduino
+        if self.arduino:
+            self.arduino.write(b"STOP\n")
         
         # Send status to frontend
         await self.websocket.send_json({
@@ -200,7 +200,7 @@ class PlaybackEngine:
                 
                 # Check if complete
                 if len(self.played_notes) >= len(self.note_queue) and self.note_queue:
-                    print("✅ Sequence complete")
+                    print("Sequence complete")
                     await self.stop()
                     await self.websocket.send_json({
                         "type": "playback",
@@ -212,17 +212,17 @@ class PlaybackEngine:
                 await asyncio.sleep(0.01)
         
         except asyncio.CancelledError:
-            print("⏹️ Timing loop cancelled")
+            print("Timing loop cancelled")
             raise
     
     async def _play_note(self, note: NoteSchedule, current_step: float):
         """Play a single note."""
-        print(f"♪ {note.pitchName:4s} at step {current_step:.1f}")
+        print(f"Note: {note.pitchName:4s} at step {current_step:.1f}")
         
-        # Send to Teensy
-        if self.teensy:
-            cmd = f"NOTE:{note.pitchName},{note.step},{self.bpm}\n"
-            self.teensy.write(cmd.encode())
+        # Send to Arduino - simplified format: N:pitchName
+        if self.arduino:
+            cmd = f"N:{note.pitchName}\n"
+            self.arduino.write(cmd.encode())
         
         # Send to frontend
         await self.websocket.send_json({
@@ -235,32 +235,35 @@ class PlaybackEngine:
 
 
 # ==============================================================================
-# TEENSY CONNECTION
+# ARDUINO CONNECTION
 # ==============================================================================
 
-def find_teensy():
-    """Auto-detect Teensy port"""
+def find_arduino():
+    """Auto-detect Arduino port"""
     ports = serial.tools.list_ports.comports()
     for port in ports:
-        if "teensy" in port.description.lower() or "usb" in port.description.lower():
+        desc = port.description.lower()
+        # Look for common Arduino identifiers
+        if any(x in desc for x in ["arduino", "ch340", "usb serial", "usbserial", "usbmodem"]):
             return port.device
     return None
 
 
-def connect_teensy():
-    """Connect to Teensy via USB serial"""
-    global teensy
+def connect_arduino():
+    """Connect to Arduino via USB serial"""
+    global arduino
     try:
-        port = find_teensy()
+        port = find_arduino()
         if port:
-            teensy = serial.Serial(port, 115200, timeout=1)
-            print(f"✅ Connected to Teensy on {port}")
+            arduino = serial.Serial(port, 9600, timeout=1)
+            time.sleep(2)  # Wait for Arduino to reset
+            print(f"Connected to Arduino on {port}")
             return True
         else:
-            print("⚠️ Teensy not found")
+            print("Arduino not found")
             return False
     except Exception as e:
-        print(f"❌ Failed to connect to Teensy: {e}")
+        print(f"Failed to connect to Arduino: {e}")
         return False
 
 
@@ -270,8 +273,8 @@ def connect_teensy():
 
 @app.on_event("startup")
 async def startup():
-    """Try to connect to Teensy on startup"""
-    connect_teensy()
+    """Try to connect to Arduino on startup"""
+    connect_arduino()
 
 
 @app.websocket("/ws/notes")
@@ -279,38 +282,37 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     clients.append(websocket)
     
-    print(f"✅ WebSocket connected")
+    print(f"WebSocket connected")
     
     # Send connection status
     try:
         await websocket.send_json({
             "type": "connection",
-            "teensy_connected": teensy is not None
+            "arduino_connected": arduino is not None
         })
-        print(f"📤 Sent connection status: teensy_connected={teensy is not None}")
+        print(f"Sent connection status: arduino_connected={arduino is not None}")
     except Exception as e:
-        print(f"⚠️ Error sending connection status: {e}")
+        print(f"Error sending connection status: {e}")
     
     # Create playback engine
     engine = None
-    if teensy:
-        engine = PlaybackEngine(teensy, websocket)
-        print("✅ Playback engine created")
+    if arduino:
+        engine = PlaybackEngine(arduino, websocket)
+        print("Playback engine created")
     else:
-        print("⚠️ No Teensy - playback engine not created")
+        print("No Arduino - playback engine not created")
     
     try:
         while True:
-            print("📥 Waiting for message from frontend...")
             data = await websocket.receive_json()
-            print(f"📨 Received: {data}")
+            print(f"Received: {data}")
             
             # Check if engine exists
             if not engine:
-                print("❌ No engine - Teensy not connected")
+                print("No engine - Arduino not connected")
                 await websocket.send_json({
                     "type": "error",
-                    "message": "Teensy not connected"
+                    "message": "Arduino not connected"
                 })
                 continue
             
@@ -334,24 +336,24 @@ async def websocket_endpoint(websocket: WebSocket):
             # Unknown action
             # ============================================================
             else:
-                print(f"⚠️ Unknown action: {data.get('action')}")
+                print(f"Unknown action: {data.get('action')}")
                 # Broadcast to other clients (if any)
                 for client in clients:
                     if client != websocket:
                         await client.send_json(data)
     
     except Exception as e:
-        print(f"❌ WebSocket error: {e}")
+        print(f"WebSocket error: {e}")
         import traceback
         traceback.print_exc()
     
     finally:
         # Cleanup
-        print("🔌 Cleaning up...")
+        print("Cleaning up...")
         if engine:
             await engine.stop()
         clients.remove(websocket)
-        print("✅ Client disconnected")
+        print("Client disconnected")
 
 
 if __name__ == "__main__":
