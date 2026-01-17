@@ -17,7 +17,7 @@ export default function PianoRoll() {
   const [playing, setPlaying] = useState(false);
   const [bpm, setBpm] = useState(120);
   const [playheadX, setPlayheadX] = useState(0);
-  const [numSteps, setNumSteps] = useState(INITIAL_NUM_STEPS); 
+  const [numSteps, setNumSteps] = useState(Math.max(64, INITIAL_NUM_STEPS));
 
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
@@ -93,7 +93,7 @@ export default function PianoRoll() {
   };
 
   const handleAdjustSteps = (delta: number) => {
-    setNumSteps((prev) => Math.max(16, prev + delta)); // Minimum 16 steps
+    setNumSteps((prev) => Math.max(64, prev + delta)); 
   };
 
   return (
