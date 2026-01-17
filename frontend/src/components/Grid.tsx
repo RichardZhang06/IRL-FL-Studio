@@ -29,8 +29,8 @@ export default function Grid({
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const grid = e.currentTarget;
     const rect = grid.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = e.clientX - rect.left + grid.scrollLeft;
+    const y = e.clientY - rect.top + grid.scrollTop;
 
     const step = Math.floor(x / STEP_WIDTH);
     const rowHeight = rect.height / numRows;
