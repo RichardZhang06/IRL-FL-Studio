@@ -1,5 +1,4 @@
 // TopBar.tsx
-
 type Props = {
   playing: boolean;
   bpm: number;
@@ -11,6 +10,8 @@ type Props = {
   numSteps: number;
   onSavePreset: () => void;
   onLoadPreset: () => void;
+  showFretboard: boolean;
+  onToggleFretboard: () => void;
 };
 
 export default function TopBar({
@@ -24,12 +25,13 @@ export default function TopBar({
   numSteps,
   onSavePreset,
   onLoadPreset,
+  showFretboard,
+  onToggleFretboard,
 }: Props) {
   return (
     <div className="topbar">
       {/* App title */}
       <div className="title">IRL FL Studio</div>
-
       <div className="transport">
         <button
           className={playing ? "stop" : "primary"}
@@ -37,16 +39,13 @@ export default function TopBar({
         >
           {playing ? "Stop" : "Start"}
         </button>
-
         <button className="reset" onClick={onReset}>
           Reset
         </button>
-
         <button className="clear" onClick={onClearNotes}>
           Clear Notes
         </button>
       </div>
-
       <div className="bpm">
         <span>BPM</span>
         <input
@@ -58,7 +57,6 @@ export default function TopBar({
         />
         <span className="bpm-value">{bpm}</span>
       </div>
-
       {/* Grid Size Controls */}
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <button onClick={() => onAdjustSteps(-16)}>-16 Steps</button>
@@ -66,6 +64,12 @@ export default function TopBar({
           {numSteps} steps
         </span>
         <button onClick={() => onAdjustSteps(16)}>+16 Steps</button>
+      </div>
+      {/* Fretboard Toggle */}
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button onClick={onToggleFretboard}>
+          {showFretboard ? "Hide" : "Show"} Fretboard
+        </button>
       </div>
       {/* Presets */}
       <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>

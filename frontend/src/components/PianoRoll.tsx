@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS, findNoteGroup, BEATS_AHEAD } from "../constants";
 import PianoKeyboard from "./PianoKeyboard";
+import Fretboard from "./Fretboard";
 import Grid from "./Grid";
 import TopBar from "./TopBar";
 import useNotesWebSocket from "./useNotesWebSocket";
@@ -18,6 +19,7 @@ export default function PianoRoll() {
   const [bpm, setBpm] = useState(120);
   const [playheadX, setPlayheadX] = useState(0);
   const [numSteps, setNumSteps] = useState(Math.max(64, INITIAL_NUM_STEPS));
+  const [showFretboard, setShowFretboard] = useState(false);
 
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
@@ -161,8 +163,10 @@ export default function PianoRoll() {
         numSteps={numSteps}
         onSavePreset={handleSavePreset}
         onLoadPreset={handleLoadPreset}
+        showFretboard={showFretboard}
+        onToggleFretboard={() => setShowFretboard(!showFretboard)}
       />
-      <div className="piano-roll" style={{ display: "flex", flex: 1 }}>
+      <div className="piano-roll" style={{ display: "flex", flex: 1, position: "relative" }}>
         <PianoKeyboard />
         <Grid
           ref={gridRef}
@@ -172,6 +176,7 @@ export default function PianoRoll() {
           playheadX={playheadX}
           numSteps={numSteps}
         />
+        <Fretboard visible={showFretboard} />
       </div>
     </div>
   );
