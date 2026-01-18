@@ -6,6 +6,7 @@ import serial.tools.list_ports
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 import time
+from collections import defaultdict
 
 app = FastAPI()
 
@@ -25,7 +26,7 @@ arduino = None
 
 
 # ==============================================================================
-# PLAYBACK ENGINE - SIMPLIFIED
+# PLAYBACK ENGINE - WITH CHORD SUPPORT
 # ==============================================================================
 
 @dataclass
@@ -42,8 +43,8 @@ class NoteSchedule:
 
 class PlaybackEngine:
     """
-    Simple playback engine with timing.
-    Only supports play and stop (matches frontend).
+    Playback engine with chord support.
+    Groups notes at the same time position and sends them together.
     """
     
     def __init__(self, arduino, websocket):
@@ -61,10 +62,11 @@ class PlaybackEngine:
         
         # Note queue
         self.note_queue: List[NoteSchedule] = []
-        self.played_notes = []
+        self.played_notes = set()  # Use set for faster lookups
         
         # Timing loop
         self.loop_task = None
+        self.reader_task = None
     
     def step_to_seconds(self, step: float) -> float:
         """Convert step position to seconds based on BPM."""
@@ -107,21 +109,40 @@ class PlaybackEngine:
         # Sort by time
         self.note_queue.sort(key=lambda n: n.time_seconds)
         
-        print(f"Loaded {len(self.note_queue)} notes starting from step {playhead_step:.1f}")
+        # Group notes by time for chord detection
+        self._group_simultaneous_notes()
+        
+        print(f"✓ Loaded {len(self.note_queue)} notes starting from step {playhead_step:.1f}")
+    
+    def _group_simultaneous_notes(self):
+        """
+        Group notes that occur at the same time.
+        This helps identify chords and send them together to Arduino.
+        """
+        # Group notes by time (with small tolerance for floating point)
+        time_groups = defaultdict(list)
+        for note in self.note_queue:
+            # Round to nearest 10ms to group simultaneous notes
+            time_key = round(note.time_seconds, 2)
+            time_groups[time_key].append(note)
+        
+        # Log chords (2+ notes at same time)
+        chord_count = sum(1 for notes in time_groups.values() if len(notes) > 1)
+        if chord_count > 0:
+            print(f"✓ Detected {chord_count} chord(s) in sequence")
     
     async def play(self, notes: List[Dict], bpm: int, playhead_step: float):
         """
         Start playback from a specific step position.
-        Matches frontend play() function.
         """
         if self.is_playing:
-            print("Already playing - stopping first")
+            print("⚠ Already playing - stopping first")
             await self.stop()
         
-        print(f"\n{'='*60}")
-        print(f"PLAY from step {playhead_step:.1f} at {bpm} BPM")
-        print(f"Total notes: {len(notes)}")
-        print(f"{'='*60}")
+        print(f"\n{'='*70}")
+        print(f"▶ PLAY from step {playhead_step:.1f} at {bpm} BPM")
+        print(f"  Total notes: {len(notes)}")
+        print(f"{'='*70}")
         
         # Update settings
         self.bpm = bpm
@@ -134,25 +155,21 @@ class PlaybackEngine:
         
         # Send PLAY to Arduino
         if self.arduino:
-            self.arduino.write(b"PLAY\n")
+            try:
+                self.arduino.write(b"PLAY\n")
+                self.arduino.flush()
+                print("✓ Sent PLAY command to Arduino")
+            except serial.SerialException as e:
+                print(f"✗ Serial error on PLAY: {e}")
         
-        # Send status to frontend
-        await self.websocket.send_json({
-            "type": "playback",
-            "status": "playing",
-            "playheadStep": playhead_step,
-            "bpm": bpm
-        })
-        
-        # Start timing loop
+        # Start timing loop and serial reader
         self.loop_task = asyncio.create_task(self._timing_loop())
+        if self.arduino:
+            self.reader_task = asyncio.create_task(self._serial_reader())
     
     async def stop(self):
-        """
-        Stop playback and reset.
-        Matches frontend stop() function.
-        """
-        print("Stopping playback")
+        """Stop playback and reset."""
+        print("\n■ STOP")
         
         self.is_playing = False
         
@@ -164,20 +181,27 @@ class PlaybackEngine:
             except asyncio.CancelledError:
                 pass
         
+        # Cancel serial reader
+        if self.reader_task and not self.reader_task.done():
+            self.reader_task.cancel()
+            try:
+                await self.reader_task
+            except asyncio.CancelledError:
+                pass
+        
         # Send STOP to Arduino
         if self.arduino:
-            self.arduino.write(b"STOP\n")
-        
-        # Send status to frontend
-        await self.websocket.send_json({
-            "type": "playback",
-            "status": "stopped"
-        })
+            try:
+                self.arduino.write(b"STOP\n")
+                self.arduino.flush()
+                print("✓ Sent STOP command to Arduino")
+            except serial.SerialException as e:
+                print(f"✗ Serial error on STOP: {e}")
     
     async def _timing_loop(self):
         """
         Main timing loop - checks every 10ms.
-        Plays notes when playhead reaches their time.
+        Groups simultaneous notes and plays them together.
         """
         try:
             while self.is_playing:
@@ -185,79 +209,153 @@ class PlaybackEngine:
                 elapsed = time.time() - self.start_time
                 current_step = self.playhead_step + self.seconds_to_step(elapsed)
                 
-                # Check for notes to play
+                # Check for notes to play (group by time)
                 notes_to_play = []
                 for note in self.note_queue:
                     if note.time_seconds <= elapsed and note.id not in self.played_notes:
                         notes_to_play.append(note)
-                        self.played_notes.append(note.id)
+                        self.played_notes.add(note.id)
                 
-                # Play notes
-                for note in notes_to_play:
-                    await self._play_note(note, current_step)
-                
-                # Send playhead update (every 100ms)
-                if int(elapsed * 10) % 10 == 0:
-                    await self.websocket.send_json({
-                        "type": "playhead_update",
-                        "playheadStep": current_step,
-                        "time": elapsed
-                    })
+                # Group simultaneous notes (within 20ms window)
+                if notes_to_play:
+                    grouped = self._group_notes_by_time(notes_to_play)
+                    for note_group in grouped:
+                        if len(note_group) > 1:
+                            # Chord - send all notes together
+                            await self._play_chord(note_group, current_step, elapsed)
+                        else:
+                            # Single note
+                            await self._play_note(note_group[0], current_step, elapsed)
                 
                 # Check if complete
                 if len(self.played_notes) >= len(self.note_queue) and self.note_queue:
-                    print("Sequence complete")
+                    print(f"\n✓ Sequence complete ({len(self.played_notes)} notes played)")
                     await self.stop()
-                    await self.websocket.send_json({
-                        "type": "playback",
-                        "status": "complete"
-                    })
                     break
                 
                 # Sleep 10ms
                 await asyncio.sleep(0.01)
         
         except asyncio.CancelledError:
-            print("Timing loop cancelled")
+            print("⚠ Timing loop cancelled")
             raise
     
-    async def _play_note(self, note: NoteSchedule, current_step: float):
-        """Play a single note with string/fret information."""
-        # Log with guitar data
-        guitar_info = ""
-        if note.noteGroup is not None:
-            guitar_info = f" [String:{note.noteGroup}"
-            if note.fretNumber is not None:
-                guitar_info += f" Fret:{note.fretNumber}"
-            guitar_info += "]"
+    def _group_notes_by_time(self, notes: List[NoteSchedule]) -> List[List[NoteSchedule]]:
+        """
+        Group notes that should play simultaneously.
+        Notes within 20ms are considered simultaneous.
+        """
+        if not notes:
+            return []
         
-        print(f"Note: {note.pitchName:4s} at step {current_step:.1f}{guitar_info}")
+        # Sort by time
+        sorted_notes = sorted(notes, key=lambda n: n.time_seconds)
+        
+        groups = []
+        current_group = [sorted_notes[0]]
+        
+        for note in sorted_notes[1:]:
+            # If within 20ms of first note in group, add to group
+            if abs(note.time_seconds - current_group[0].time_seconds) < 0.02:
+                current_group.append(note)
+            else:
+                # Start new group
+                groups.append(current_group)
+                current_group = [note]
+        
+        # Add last group
+        if current_group:
+            groups.append(current_group)
+        
+        return groups
+    
+    def _format_note_info(self, note: NoteSchedule) -> str:
+        """Format note info for logging."""
+        info = f"{note.pitchName:5s}"
+        if note.noteGroup is not None:
+            fret_str = "Open" if note.fretNumber == 0 else f"Fr.{note.fretNumber}"
+            info += f" [Str.{note.noteGroup} {fret_str:5s}]"
+        return info
+    
+    async def _play_chord(self, notes: List[NoteSchedule], current_step: float, elapsed: float):
+        """Play multiple notes simultaneously (a chord)."""
+        # Format chord info
+        chord_notes = " + ".join([self._format_note_info(n) for n in notes])
+        
+        print(f"\n[{elapsed:6.2f}s] Step {current_step:6.1f}")
+        print(f"  ♫ CHORD ({len(notes)} notes): {chord_notes}")
+        
+        # Send all notes to Arduino
+        if self.arduino:
+            try:
+                # Send chord start marker
+                self.arduino.write(b"CHORD_START\n")
+                self.arduino.flush()
+                await asyncio.sleep(0.005)  # 5ms delay
+                
+                print(f"  → Arduino: CHORD_START")
+                
+                # Send each note in the chord
+                for note in notes:
+                    if note.noteGroup is not None:
+                        fret = note.fretNumber if note.fretNumber is not None else 0
+                        cmd = f"S:{note.noteGroup}:{fret}:{note.pitchName}"
+                    else:
+                        cmd = f"N:{note.pitchName}"
+                    
+                    self.arduino.write(f"{cmd}\n".encode())
+                    self.arduino.flush()
+                    print(f"  → Arduino: {cmd}")
+                    await asyncio.sleep(0.005)  # 5ms between notes in chord
+                
+                # Send chord end marker
+                self.arduino.write(b"CHORD_END\n")
+                self.arduino.flush()
+                print(f"  → Arduino: CHORD_END")
+                
+            except serial.SerialException as e:
+                print(f"  ✗ Serial error playing chord: {e}")
+                await self.stop()
+    
+    async def _play_note(self, note: NoteSchedule, current_step: float, elapsed: float):
+        """Play a single note with string/fret information."""
+        note_info = self._format_note_info(note)
+        
+        print(f"\n[{elapsed:6.2f}s] Step {current_step:6.1f}")
+        print(f"  ♪ NOTE: {note_info}")
         
         # Send to Arduino with noteGroup (string number)
         if self.arduino:
-            if note.noteGroup is not None:
-                # Format: S:stringNumber:fretNumber:pitchName
-                # Example: S:2:3:D3 means String 2 (D string), Fret 3, note D3
-                fret = note.fretNumber if note.fretNumber is not None else 0
-                cmd = f"S:{note.noteGroup}:{fret}:{note.pitchName}\n"
-            else:
-                # Fallback to old format if no string data
-                cmd = f"N:{note.pitchName}\n"
-            
-            self.arduino.write(cmd.encode())
-            print(f"  -> Arduino: {cmd.strip()}")
-        
-        # Send to frontend
-        await self.websocket.send_json({
-            "type": "note_playing",
-            "id": note.id,
-            "pitchName": note.pitchName,
-            "step": note.step,
-            "playheadStep": current_step,
-            "stringNumber": note.stringNumber,
-            "fretNumber": note.fretNumber,
-            "noteGroup": note.noteGroup
-        })
+            try:
+                if note.noteGroup is not None:
+                    fret = note.fretNumber if note.fretNumber is not None else 0
+                    cmd = f"S:{note.noteGroup}:{fret}:{note.pitchName}"
+                else:
+                    cmd = f"N:{note.pitchName}"
+                
+                self.arduino.write(f"{cmd}\n".encode())
+                self.arduino.flush()
+                print(f"  → Arduino: {cmd}")
+                await asyncio.sleep(0.01)  # 10ms delay to prevent buffer overflow
+                
+            except serial.SerialException as e:
+                print(f"  ✗ Serial error: {e}")
+                await self.stop()
+    
+    async def _serial_reader(self):
+        """Read responses from Arduino."""
+        try:
+            while self.is_playing:
+                if self.arduino and self.arduino.in_waiting > 0:
+                    try:
+                        response = self.arduino.readline().decode('utf-8').strip()
+                        if response:
+                            print(f"  ← Arduino: {response}")
+                    except Exception as e:
+                        print(f"  ✗ Error reading from Arduino: {e}")
+                await asyncio.sleep(0.05)
+        except asyncio.CancelledError:
+            pass
 
 
 # ==============================================================================
@@ -286,13 +384,13 @@ def connect_arduino():
         if port:
             arduino = serial.Serial(port, 9600, timeout=1)
             time.sleep(2)  # Wait for Arduino to reset
-            print(f"Connected to Arduino on {port}")
+            print(f"✓ Connected to Arduino on {port}")
             return True
         else:
-            print("Arduino not found")
+            print("✗ Arduino not found")
             return False
     except Exception as e:
-        print(f"Failed to connect to Arduino: {e}")
+        print(f"✗ Failed to connect to Arduino: {e}")
         return False
 
 
@@ -303,7 +401,11 @@ def connect_arduino():
 @app.on_event("startup")
 async def startup():
     """Try to connect to Arduino on startup"""
+    print("\n" + "="*70)
+    print("GUITAR SEQUENCER BACKEND")
+    print("="*70)
     connect_arduino()
+    print("="*70 + "\n")
 
 
 @app.websocket("/ws/notes")
@@ -311,38 +413,24 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     clients.append(websocket)
     
-    print(f"WebSocket connected")
-    
-    # Send connection status
-    try:
-        await websocket.send_json({
-            "type": "connection",
-            "arduino_connected": arduino is not None
-        })
-        print(f"Sent connection status: arduino_connected={arduino is not None}")
-    except Exception as e:
-        print(f"Error sending connection status: {e}")
+    print(f"✓ WebSocket client connected")
     
     # Create playback engine
     engine = None
     if arduino:
         engine = PlaybackEngine(arduino, websocket)
-        print("Playback engine created")
+        print("✓ Playback engine ready")
     else:
-        print("No Arduino - playback engine not created")
+        print("⚠ No Arduino - playback engine not created")
     
     try:
         while True:
             data = await websocket.receive_json()
-            print(f"Received: {data}")
+            print(f"Received from frontend: {data}")  # Add this line back
             
             # Check if engine exists
             if not engine:
-                print("No engine - Arduino not connected")
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "Arduino not connected"
-                })
+                print("Arduino not connected")
                 continue
             
             # ============================================================
@@ -366,23 +454,18 @@ async def websocket_endpoint(websocket: WebSocket):
             # ============================================================
             else:
                 print(f"Unknown action: {data.get('action')}")
-                # Broadcast to other clients (if any)
-                for client in clients:
-                    if client != websocket:
-                        await client.send_json(data)
     
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"✗ WebSocket error: {e}")
         import traceback
         traceback.print_exc()
     
     finally:
         # Cleanup
-        print("Cleaning up...")
         if engine:
             await engine.stop()
         clients.remove(websocket)
-        print("Client disconnected")
+        print("✗ WebSocket client disconnected\n")
 
 
 if __name__ == "__main__":

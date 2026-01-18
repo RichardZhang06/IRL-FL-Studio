@@ -14,10 +14,12 @@
  *   String 5 -> Pin 7 (servo index 5)
  * 
  * BACKEND COMMANDS:
- *   S:0:0:E4    - Pluck string 0, fret 0, note E4
- *   N:E4        - Play note E4 (fallback)
- *   PLAY        - Playback started
- *   STOP        - Stop all
+ *   PLAY           - Playback started
+ *   STOP           - Stop all
+ *   CHORD_START    - Begin chord (no delays between plucks)
+ *   CHORD_END      - Release chord
+ *   S:0:0:E4       - Pluck string 0, fret 0, note E4
+ *   N:E4           - Play note E4 (fallback)
  * 
  * SERIAL MONITOR COMMANDS:
  *   S0:90       - Set servo 0 to 90°
@@ -38,340 +40,433 @@
  *   L           - Show position
  */
 
- #include <Servo.h>
+#include <Servo.h>
 
- // ============================================================================
- // PIN DEFINITIONS
- // ============================================================================
- // Servos
- const byte SERVO_PINS[6] = {2, 3, 4, 5, 6, 7};
- 
- // String number to servo index mapping
- // String 0->pin4(idx2), 1->pin2(idx0), 2->pin5(idx3), 3->pin3(idx1), 4->pin6(idx4), 5->pin7(idx5)
- const byte STRING_TO_SERVO[6] = {2, 0, 3, 1, 4, 5};
- 
- // Stepper (TB6600)
- const byte STEP_PIN = 8;
- const byte DIR_PIN = 9;
- const byte ENA_PIN = 10;
- 
- // ============================================================================
- // SERVO STATE
- // ============================================================================
- Servo servos[6];
- byte angles[6] = {90, 90, 90, 90, 90, 90};
- 
- // Strum tuning per servo: start position, swing angle
- //                         S0   S1   S2   S3   S4   S5
- byte strumStart[6] = {105, 105, 105, 105, 105, 105};
- byte strumSwing[6] = { 50,  50,  50,  50,  50,  50};
- 
- // ============================================================================
- // STEPPER CONFIG & STATE
- // ============================================================================
- const int STEPS_PER_REV = 200;
- const int MICROSTEP = 16;
- const float MM_PER_STEP = 8.0 / (STEPS_PER_REV * MICROSTEP);  // 8mm lead screw
- 
- int stepSpeed = 1600;       // steps/sec
- long stepPos = 0;           // current position in steps
- bool motorOn = false;
- bool isPlaying = false;     // Playback state
- 
- // ============================================================================
- // SETUP
- // ============================================================================
- void setup() {
-   Serial.begin(9600);
-   
-   // Servos
-   for (int i = 0; i < 6; i++) {
-     servos[i].attach(SERVO_PINS[i]);
-     servos[i].write(90);
-   }
-   
-   // Stepper
-   pinMode(STEP_PIN, OUTPUT);
-   pinMode(DIR_PIN, OUTPUT);
-   pinMode(ENA_PIN, OUTPUT);
-   digitalWrite(ENA_PIN, HIGH);  // Disabled initially
-   
-   Serial.println(F("Ready"));
-   Serial.println(F("Servo: S0:90 A:90 C P R0 T0:105:30"));
-   Serial.println(F("Stepper: M:100 D:10 V:800 E X Z L"));
- }
- 
- // ============================================================================
- // MAIN LOOP
- // ============================================================================
- void loop() {
-   if (!Serial.available()) return;
-   
-   String line = Serial.readStringUntil('\n');
-   line.trim();
-   if (line.length() == 0) return;
-   
-   // ==================== BACKEND COMMANDS ====================
-   
-   // Backend string command: S:stringNum:fret:note (e.g., S:2:3:D3)
-   if (line.startsWith("S:")) {
-     int col1 = line.indexOf(':');
-     int col2 = line.indexOf(':', col1 + 1);
-     if (col1 > 0 && col2 > 0) {
-       int stringNum = line.substring(col1 + 1, col2).toInt();
-       // fret and note not needed for servo-only control
-       if (stringNum >= 0 && stringNum < 6) {
-         int servoIdx = STRING_TO_SERVO[stringNum];
-         pluckString(servoIdx);
-         Serial.print(F("Pluck str:")); Serial.print(stringNum);
-         Serial.print(F(" servo:")); Serial.println(servoIdx);
-       }
-     }
-     return;
-   }
-   
-   // Backend note command: N:note (fallback, pluck string 0)
-   if (line.startsWith("N:")) {
-     int servoIdx = STRING_TO_SERVO[0];
-     pluckString(servoIdx);
-     Serial.print(F("Note:")); Serial.println(line.substring(2));
-     return;
-   }
-   
-   // PLAY command
-   if (line == "PLAY") {
-     isPlaying = true;
-     Serial.println(F("Playing"));
-     return;
-   }
-   
-   // STOP command
-   if (line == "STOP") {
-     isPlaying = false;
-     for (int i = 0; i < 6; i++) {
-       servos[i].write(90);
-       angles[i] = 90;
-     }
-     Serial.println(F("Stopped"));
-     return;
-   }
-   
-   // ==================== SERIAL MONITOR COMMANDS ====================
-   
-   char cmd = line.charAt(0);
-   
-   // ==================== SERVO COMMANDS ====================
-   
-   // Individual servo: S0:90
-   if (cmd == 'S' || cmd == 's') {
-     int idx = line.substring(1).toInt();
-     int colIdx = line.indexOf(':');
-     if (colIdx > 0) {
-       int angle = constrain(line.substring(colIdx + 1).toInt(), 0, 180);
-       if (idx >= 0 && idx < 6) {
-         servos[idx].write(angle);
-         angles[idx] = angle;
-         Serial.print(F("S")); Serial.print(idx);
-         Serial.print(F(":")); Serial.println(angle);
-       }
-     }
-   }
-   // All servos: A:90
-   else if (cmd == 'A' || cmd == 'a') {
-     int colIdx = line.indexOf(':');
-     if (colIdx > 0) {
-       int angle = constrain(line.substring(colIdx + 1).toInt(), 0, 180);
-       for (int i = 0; i < 6; i++) {
-         servos[i].write(angle);
-         angles[i] = angle;
-       }
-       Serial.print(F("All:")); Serial.println(angle);
-     }
-   }
-   // Center: C
-   else if (cmd == 'C' || cmd == 'c') {
-     for (int i = 0; i < 6; i++) {
-       servos[i].write(90);
-       angles[i] = 90;
-     }
-     Serial.println(F("Centered"));
-   }
-   // Position: P
-   else if (cmd == 'P' || cmd == 'p') {
-     for (int i = 0; i < 6; i++) {
-       Serial.print(F("S")); Serial.print(i);
-       Serial.print(F(":")); Serial.print(angles[i]);
-       Serial.print(F(" "));
-     }
-     Serial.println();
-   }
-   // Strum: R0 or R0:3 (uses preset swing) or R0:30:3 (custom swing)
-   else if (cmd == 'R' || cmd == 'r') {
-     int idx = line.substring(1).toInt();
-     if (idx >= 0 && idx < 6) {
-       int col1 = line.indexOf(':');
-       int swing = strumSwing[idx];  // Default to preset
-       int count = 1;  // Default count
-       
-       if (col1 > 0) {
-         int col2 = line.indexOf(':', col1 + 1);
-         if (col2 > 0) {
-           // R0:30:3 format (custom swing and count)
-           swing = line.substring(col1 + 1).toInt();
-           count = line.substring(col2 + 1).toInt();
-         } else {
-           // R0:3 format (preset swing, custom count)
-           count = line.substring(col1 + 1).toInt();
-         }
-       }
-       
-       swing = constrain(swing, 1, 90);
-       count = constrain(count, 1, 20);
-       
-       byte start = strumStart[idx];
-       byte low = constrain(start - swing, 0, 180);
-       
-       servos[idx].write(start);
-       delay(200);
-       
-       Serial.print(F("Strum S")); Serial.print(idx);
-       Serial.print(F(" -")); Serial.print(swing);
-       Serial.print(F(" x")); Serial.println(count);
-       
-       // Cycle: start -> low -> start
-       for (int i = 0; i < count; i++) {
-         servos[idx].write(low);
-         delay(250);
-         servos[idx].write(start);
-         delay(250);
-       }
-       servos[idx].write(90);
-       angles[idx] = 90;
-     }
-   }
-   // Tune strum: T0:105:30 (servo, start, swing)
-   else if (cmd == 'T' || cmd == 't') {
-     int idx = line.substring(1).toInt();
-     int col1 = line.indexOf(':');
-     int col2 = line.indexOf(':', col1 + 1);
-     if (col1 > 0 && idx >= 0 && idx < 6) {
-       strumStart[idx] = constrain(line.substring(col1 + 1).toInt(), 0, 180);
-       if (col2 > 0) {
-         strumSwing[idx] = constrain(line.substring(col2 + 1).toInt(), 1, 90);
-       }
-       Serial.print(F("Tune S")); Serial.print(idx);
-       Serial.print(F(" start:")); Serial.print(strumStart[idx]);
-       Serial.print(F(" swing:")); Serial.println(strumSwing[idx]);
-     }
-   }
-   
-   // ==================== STEPPER COMMANDS ====================
-   
-   // Move steps: M:100 or M:-100
-   else if (cmd == 'M' || cmd == 'm') {
-     int colIdx = line.indexOf(':');
-     if (colIdx > 0) {
-       long steps = line.substring(colIdx + 1).toInt();
-       Serial.print(F("Move:")); Serial.println(steps);
-       moveSteps(steps);
-       showStepperPos();
-     }
-   }
-   // Move mm: D:10 or D:-10
-   else if (cmd == 'D' || cmd == 'd') {
-     int colIdx = line.indexOf(':');
-     if (colIdx > 0) {
-       float mm = line.substring(colIdx + 1).toFloat();
-       long steps = (long)(mm / MM_PER_STEP);
-       Serial.print(F("Move:")); Serial.print(mm);
-       Serial.println(F("mm"));
-       moveSteps(steps);
-       showStepperPos();
-     }
-   }
-   // Speed: V:800
-   else if (cmd == 'V' || cmd == 'v') {
-     int colIdx = line.indexOf(':');
-     if (colIdx > 0) {
-       stepSpeed = constrain(line.substring(colIdx + 1).toInt(), 50, 4000);
-       Serial.print(F("Speed:")); Serial.println(stepSpeed);
-     }
-   }
-   // Enable: E
-   else if (cmd == 'E' || cmd == 'e') {
-     digitalWrite(ENA_PIN, LOW);
-     motorOn = true;
-     Serial.println(F("Motor ON"));
-   }
-   // Disable: X
-   else if (cmd == 'X' || cmd == 'x') {
-     digitalWrite(ENA_PIN, HIGH);
-     motorOn = false;
-     Serial.println(F("Motor OFF"));
-   }
-   // Zero: Z
-   else if (cmd == 'Z' || cmd == 'z') {
-     stepPos = 0;
-     Serial.println(F("Zero set"));
-   }
-   // Location: L
-   else if (cmd == 'L' || cmd == 'l') {
-     showStepperPos();
-   }
- }
- 
- // ============================================================================
- // STEPPER FUNCTIONS
- // ============================================================================
- void moveSteps(long steps) {
-   if (!motorOn) {
-     Serial.println(F("Motor off! E to enable"));
-     return;
-   }
-   if (steps == 0) return;
-   
-   // Set direction
-   digitalWrite(DIR_PIN, steps > 0 ? HIGH : LOW);
-   delayMicroseconds(10);
-   
-   long absSteps = abs(steps);
-   unsigned long stepDelay = 1000000L / stepSpeed;
-   
-   for (long i = 0; i < absSteps; i++) {
-     digitalWrite(STEP_PIN, HIGH);
-     delayMicroseconds(5);
-     digitalWrite(STEP_PIN, LOW);
-     delayMicroseconds(stepDelay);
-     
-     stepPos += (steps > 0) ? 1 : -1;
-   }
- }
- 
- void showStepperPos() {
-   float mm = stepPos * MM_PER_STEP;
-   Serial.print(F("Pos:")); Serial.print(mm, 2);
-   Serial.print(F("mm (")); Serial.print(stepPos);
-   Serial.println(F(" steps)"));
- }
- 
- // ============================================================================
- // PLUCK FUNCTION (for backend commands)
- // ============================================================================
- void pluckString(int servoIdx) {
-   if (servoIdx < 0 || servoIdx > 5) return;
-   
-   byte start = strumStart[servoIdx];
-   byte swing = strumSwing[servoIdx];
-   byte low = constrain(start - swing, 0, 180);
-   
-   // Single strum cycle: start -> low -> start -> 90
-   servos[servoIdx].write(start);
-   delay(250);
-   servos[servoIdx].write(low);
-   delay(250);
-   servos[servoIdx].write(start);
-   delay(250);
-   servos[servoIdx].write(90);
-   angles[servoIdx] = 90;
- }
- 
+// ============================================================================
+// PIN DEFINITIONS
+// ============================================================================
+// Servos
+const byte SERVO_PINS[6] = {2, 3, 4, 5, 6, 7};
+
+// String number to servo index mapping
+// String 0->pin4(idx2), 1->pin2(idx0), 2->pin5(idx3), 3->pin3(idx1), 4->pin6(idx4), 5->pin7(idx5)
+const byte STRING_TO_SERVO[6] = {2, 0, 3, 1, 4, 5};
+
+// Stepper (TB6600)
+const byte STEP_PIN = 8;
+const byte DIR_PIN = 9;
+const byte ENA_PIN = 10;
+
+// ============================================================================
+// SERVO STATE
+// ============================================================================
+Servo servos[6];
+byte angles[6] = {90, 90, 90, 90, 90, 90};
+
+// Strum tuning per servo: start position, swing angle
+//                         S0   S1   S2   S3   S4   S5
+byte strumStart[6] = {105, 105, 105, 105, 105, 105};
+byte strumSwing[6] = { 50,  50,  50,  50,  50,  50};
+
+// ============================================================================
+// PLAYBACK STATE
+// ============================================================================
+bool isPlaying = false;     // Playback state
+bool inChord = false;       // Currently building a chord
+byte chordStrings[6];       // Track which strings are in current chord
+byte chordCount = 0;        // Number of strings in current chord
+
+// ============================================================================
+// STEPPER CONFIG & STATE
+// ============================================================================
+const int STEPS_PER_REV = 200;
+const int MICROSTEP = 16;
+const float MM_PER_STEP = 8.0 / (STEPS_PER_REV * MICROSTEP);  // 8mm lead screw
+
+int stepSpeed = 1600;       // steps/sec
+long stepPos = 0;           // current position in steps
+bool motorOn = false;
+
+// ============================================================================
+// TIMING CONSTANTS
+// ============================================================================
+const unsigned int PLUCK_DELAY = 100;      // Delay for single note plucks (ms)
+const unsigned int CHORD_SETTLE = 150;     // Time for chord strings to settle (ms)
+const unsigned int CHORD_RELEASE = 150;    // Time for chord release (ms)
+
+// ============================================================================
+// SETUP
+// ============================================================================
+void setup() {
+  Serial.begin(9600);
+  
+  // Servos
+  for (int i = 0; i < 6; i++) {
+    servos[i].attach(SERVO_PINS[i]);
+    servos[i].write(90);
+  }
+  
+  // Stepper
+  pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIR_PIN, OUTPUT);
+  pinMode(ENA_PIN, OUTPUT);
+  digitalWrite(ENA_PIN, HIGH);  // Disabled initially
+  
+  Serial.println(F("================================="));
+  Serial.println(F("IRL Guitar Controller Ready"));
+  Serial.println(F("================================="));
+  Serial.println(F("Servo: S0:90 A:90 C P R0 T0:105:30"));
+  Serial.println(F("Stepper: M:100 D:10 V:800 E X Z L"));
+  Serial.println(F("Backend: PLAY STOP CHORD_START/END"));
+  Serial.println(F("=================================\n"));
+}
+
+// ============================================================================
+// MAIN LOOP
+// ============================================================================
+void loop() {
+  if (!Serial.available()) return;
+  
+  String line = Serial.readStringUntil('\n');
+  line.trim();
+  if (line.length() == 0) return;
+  
+  // ==================== BACKEND COMMANDS ====================
+  
+  // PLAY command
+  if (line == "PLAY") {
+    isPlaying = true;
+    Serial.println(F("▶ Playing"));
+    return;
+  }
+  
+  // STOP command
+  if (line == "STOP") {
+    isPlaying = false;
+    inChord = false;
+    chordCount = 0;
+    
+    // Reset all servos to center
+    for (int i = 0; i < 6; i++) {
+      servos[i].write(90);
+      angles[i] = 90;
+    }
+    Serial.println(F("■ Stopped"));
+    return;
+  }
+  
+  // CHORD_START command
+  if (line == "CHORD_START") {
+    inChord = true;
+    chordCount = 0;
+    for (int i = 0; i < 6; i++) {
+      chordStrings[i] = 0;
+    }
+    Serial.println(F("♫ Chord start"));
+    return;
+  }
+  
+  // CHORD_END command
+  if (line == "CHORD_END") {
+    if (inChord && chordCount > 0) {
+      releaseChord();
+    }
+    inChord = false;
+    chordCount = 0;
+    Serial.println(F("♫ Chord released\n"));
+    return;
+  }
+  
+  // Backend string command: S:stringNum:fret:note (e.g., S:2:3:D3)
+  if (line.startsWith("S:")) {
+    int col1 = line.indexOf(':');
+    int col2 = line.indexOf(':', col1 + 1);
+    int col3 = line.indexOf(':', col2 + 1);
+    
+    if (col1 > 0 && col2 > 0) {
+      int stringNum = line.substring(col1 + 1, col2).toInt();
+      int fret = -1;
+      String note = "";
+      
+      if (col3 > 0) {
+        fret = line.substring(col2 + 1, col3).toInt();
+        note = line.substring(col3 + 1);
+      }
+      
+      if (stringNum >= 0 && stringNum < 6) {
+        int servoIdx = STRING_TO_SERVO[stringNum];
+        
+        // TODO: Move stepper to fret position here
+        
+        pluckString(servoIdx, stringNum);
+        
+        // Log the note
+        Serial.print(F("  String:")); Serial.print(stringNum);
+        if (fret >= 0) {
+          Serial.print(F(" Fret:")); Serial.print(fret);
+        }
+        if (note.length() > 0) {
+          Serial.print(F(" Note:")); Serial.print(note);
+        }
+        Serial.println();
+      }
+    }
+    return;
+  }
+  
+  // Backend note command: N:note (fallback, pluck string 0)
+  if (line.startsWith("N:")) {
+    int servoIdx = STRING_TO_SERVO[0];
+    pluckString(servoIdx, 0);
+    Serial.print(F("  Note:")); Serial.println(line.substring(2));
+    return;
+  }
+  
+  // ==================== SERIAL MONITOR COMMANDS ====================
+  
+  char cmd = line.charAt(0);
+  
+  // ==================== SERVO COMMANDS ====================
+  
+  // Individual servo: S0:90
+  if (cmd == 'S' || cmd == 's') {
+    int idx = line.substring(1).toInt();
+    int colIdx = line.indexOf(':');
+    if (colIdx > 0) {
+      int angle = constrain(line.substring(colIdx + 1).toInt(), 0, 180);
+      if (idx >= 0 && idx < 6) {
+        servos[idx].write(angle);
+        angles[idx] = angle;
+        Serial.print(F("S")); Serial.print(idx);
+        Serial.print(F(":")); Serial.println(angle);
+      }
+    }
+  }
+  // All servos: A:90
+  else if (cmd == 'A' || cmd == 'a') {
+    int colIdx = line.indexOf(':');
+    if (colIdx > 0) {
+      int angle = constrain(line.substring(colIdx + 1).toInt(), 0, 180);
+      for (int i = 0; i < 6; i++) {
+        servos[i].write(angle);
+        angles[i] = angle;
+      }
+      Serial.print(F("All:")); Serial.println(angle);
+    }
+  }
+  // Center: C
+  else if (cmd == 'C' || cmd == 'c') {
+    for (int i = 0; i < 6; i++) {
+      servos[i].write(90);
+      angles[i] = 90;
+    }
+    Serial.println(F("Centered"));
+  }
+  // Position: P
+  else if (cmd == 'P' || cmd == 'p') {
+    for (int i = 0; i < 6; i++) {
+      Serial.print(F("S")); Serial.print(i);
+      Serial.print(F(":")); Serial.print(angles[i]);
+      Serial.print(F(" "));
+    }
+    Serial.println();
+  }
+  // Strum: R0 or R0:3 (uses preset swing) or R0:30:3 (custom swing)
+  else if (cmd == 'R' || cmd == 'r') {
+    int idx = line.substring(1).toInt();
+    if (idx >= 0 && idx < 6) {
+      int col1 = line.indexOf(':');
+      int swing = strumSwing[idx];  // Default to preset
+      int count = 1;  // Default count
+      
+      if (col1 > 0) {
+        int col2 = line.indexOf(':', col1 + 1);
+        if (col2 > 0) {
+          // R0:30:3 format (custom swing and count)
+          swing = line.substring(col1 + 1, col2).toInt();
+          count = line.substring(col2 + 1).toInt();
+        } else {
+          // R0:3 format (preset swing, custom count)
+          count = line.substring(col1 + 1).toInt();
+        }
+      }
+      
+      swing = constrain(swing, 1, 90);
+      count = constrain(count, 1, 20);
+      
+      byte start = strumStart[idx];
+      byte low = constrain(start - swing, 0, 180);
+      
+      servos[idx].write(start);
+      delay(200);
+      
+      Serial.print(F("Strum S")); Serial.print(idx);
+      Serial.print(F(" -")); Serial.print(swing);
+      Serial.print(F(" x")); Serial.println(count);
+      
+      // Cycle: start -> low -> start
+      for (int i = 0; i < count; i++) {
+        servos[idx].write(low);
+        delay(250);
+        servos[idx].write(start);
+        delay(250);
+      }
+      servos[idx].write(90);
+      angles[idx] = 90;
+    }
+  }
+  // Tune strum: T0:105:30 (servo, start, swing)
+  else if (cmd == 'T' || cmd == 't') {
+    int idx = line.substring(1).toInt();
+    int col1 = line.indexOf(':');
+    int col2 = line.indexOf(':', col1 + 1);
+    if (col1 > 0 && idx >= 0 && idx < 6) {
+      strumStart[idx] = constrain(line.substring(col1 + 1, col2).toInt(), 0, 180);
+      if (col2 > 0) {
+        strumSwing[idx] = constrain(line.substring(col2 + 1).toInt(), 1, 90);
+      }
+      Serial.print(F("Tune S")); Serial.print(idx);
+      Serial.print(F(" start:")); Serial.print(strumStart[idx]);
+      Serial.print(F(" swing:")); Serial.println(strumSwing[idx]);
+    }
+  }
+  
+  // ==================== STEPPER COMMANDS ====================
+  
+  // Move steps: M:100 or M:-100
+  else if (cmd == 'M' || cmd == 'm') {
+    int colIdx = line.indexOf(':');
+    if (colIdx > 0) {
+      long steps = line.substring(colIdx + 1).toInt();
+      Serial.print(F("Move:")); Serial.println(steps);
+      moveSteps(steps);
+      showStepperPos();
+    }
+  }
+  // Move mm: D:10 or D:-10
+  else if (cmd == 'D' || cmd == 'd') {
+    int colIdx = line.indexOf(':');
+    if (colIdx > 0) {
+      float mm = line.substring(colIdx + 1).toFloat();
+      long steps = (long)(mm / MM_PER_STEP);
+      Serial.print(F("Move:")); Serial.print(mm);
+      Serial.println(F("mm"));
+      moveSteps(steps);
+      showStepperPos();
+    }
+  }
+  // Speed: V:800
+  else if (cmd == 'V' || cmd == 'v') {
+    int colIdx = line.indexOf(':');
+    if (colIdx > 0) {
+      stepSpeed = constrain(line.substring(colIdx + 1).toInt(), 50, 4000);
+      Serial.print(F("Speed:")); Serial.println(stepSpeed);
+    }
+  }
+  // Enable: E
+  else if (cmd == 'E' || cmd == 'e') {
+    digitalWrite(ENA_PIN, LOW);
+    motorOn = true;
+    Serial.println(F("Motor ON"));
+  }
+  // Disable: X
+  else if (cmd == 'X' || cmd == 'x') {
+    digitalWrite(ENA_PIN, HIGH);
+    motorOn = false;
+    Serial.println(F("Motor OFF"));
+  }
+  // Zero: Z
+  else if (cmd == 'Z' || cmd == 'z') {
+    stepPos = 0;
+    Serial.println(F("Zero set"));
+  }
+  // Location: L
+  else if (cmd == 'L' || cmd == 'l') {
+    showStepperPos();
+  }
+}
+
+// ============================================================================
+// STEPPER FUNCTIONS
+// ============================================================================
+void moveSteps(long steps) {
+  if (!motorOn) {
+    Serial.println(F("Motor off! E to enable"));
+    return;
+  }
+  if (steps == 0) return;
+  
+  // Set direction
+  digitalWrite(DIR_PIN, steps > 0 ? HIGH : LOW);
+  delayMicroseconds(10);
+  
+  long absSteps = abs(steps);
+  unsigned long stepDelay = 1000000L / stepSpeed;
+  
+  for (long i = 0; i < absSteps; i++) {
+    digitalWrite(STEP_PIN, HIGH);
+    delayMicroseconds(5);
+    digitalWrite(STEP_PIN, LOW);
+    delayMicroseconds(stepDelay);
+    
+    stepPos += (steps > 0) ? 1 : -1;
+  }
+}
+
+void showStepperPos() {
+  float mm = stepPos * MM_PER_STEP;
+  Serial.print(F("Pos:")); Serial.print(mm, 2);
+  Serial.print(F("mm (")); Serial.print(stepPos);
+  Serial.println(F(" steps)"));
+}
+
+// ============================================================================
+// PLUCK FUNCTION
+// ============================================================================
+void pluckString(int servoIdx, int stringNum) {
+  if (servoIdx < 0 || servoIdx >= 6) return;
+  
+  byte start = strumStart[servoIdx];
+  byte swing = strumSwing[servoIdx];
+  byte low = constrain(start - swing, 0, 180);
+  
+  if (inChord) {
+    // Building a chord: pluck immediately with no delays
+    servos[servoIdx].write(low);
+    angles[servoIdx] = low;
+    chordStrings[chordCount++] = servoIdx;
+  } else {
+    // Single note: full strum cycle with delays
+    servos[servoIdx].write(start);
+    delay(PLUCK_DELAY);
+    servos[servoIdx].write(low);
+    delay(PLUCK_DELAY);
+    servos[servoIdx].write(start);
+    delay(PLUCK_DELAY);
+    servos[servoIdx].write(90);
+    angles[servoIdx] = 90;
+  }
+}
+
+// ============================================================================
+// CHORD RELEASE FUNCTION
+// ============================================================================
+void releaseChord() {
+  // Let strings settle in pluck position
+  delay(CHORD_SETTLE);
+  
+  // Return all chord strings to start position
+  for (int i = 0; i < chordCount; i++) {
+    byte servoIdx = chordStrings[i];
+    servos[servoIdx].write(strumStart[servoIdx]);
+  }
+  
+  delay(CHORD_RELEASE);
+  
+  // Return all to center
+  for (int i = 0; i < chordCount; i++) {
+    byte servoIdx = chordStrings[i];
+    servos[servoIdx].write(90);
+    angles[servoIdx] = 90;
+  }
+}
