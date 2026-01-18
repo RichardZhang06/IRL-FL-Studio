@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import serial
 import serial.tools.list_ports
-from typing import List, Dict
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 import time
 
@@ -35,6 +35,9 @@ class NoteSchedule:
     pitchName: str
     step: int
     time_seconds: float  # When to play (in seconds from start)
+    stringNumber: Optional[int] = None  # Guitar string (0-5)
+    fretNumber: Optional[int] = None    # Fret position (-1, 0, 1-4)
+    noteGroup: Optional[int] = None     # Note group index (0-5)
 
 
 class PlaybackEngine:
@@ -94,7 +97,10 @@ class PlaybackEngine:
                     id=note['id'],
                     pitchName=note['pitchName'],
                     step=note['step'],
-                    time_seconds=time_seconds
+                    time_seconds=time_seconds,
+                    stringNumber=note.get('stringNumber'),
+                    fretNumber=note.get('fretNumber'),
+                    noteGroup=note.get('noteGroup')
                 )
                 self.note_queue.append(note_schedule)
         
@@ -216,13 +222,30 @@ class PlaybackEngine:
             raise
     
     async def _play_note(self, note: NoteSchedule, current_step: float):
-        """Play a single note."""
-        print(f"Note: {note.pitchName:4s} at step {current_step:.1f}")
+        """Play a single note with string/fret information."""
+        # Log with guitar data
+        guitar_info = ""
+        if note.noteGroup is not None:
+            guitar_info = f" [String:{note.noteGroup}"
+            if note.fretNumber is not None:
+                guitar_info += f" Fret:{note.fretNumber}"
+            guitar_info += "]"
         
-        # Send to Arduino - simplified format: N:pitchName
+        print(f"Note: {note.pitchName:4s} at step {current_step:.1f}{guitar_info}")
+        
+        # Send to Arduino with noteGroup (string number)
         if self.arduino:
-            cmd = f"N:{note.pitchName}\n"
+            if note.noteGroup is not None:
+                # Format: S:stringNumber:fretNumber:pitchName
+                # Example: S:2:3:D3 means String 2 (D string), Fret 3, note D3
+                fret = note.fretNumber if note.fretNumber is not None else 0
+                cmd = f"S:{note.noteGroup}:{fret}:{note.pitchName}\n"
+            else:
+                # Fallback to old format if no string data
+                cmd = f"N:{note.pitchName}\n"
+            
             self.arduino.write(cmd.encode())
+            print(f"  -> Arduino: {cmd.strip()}")
         
         # Send to frontend
         await self.websocket.send_json({
@@ -230,7 +253,10 @@ class PlaybackEngine:
             "id": note.id,
             "pitchName": note.pitchName,
             "step": note.step,
-            "playheadStep": current_step
+            "playheadStep": current_step,
+            "stringNumber": note.stringNumber,
+            "fretNumber": note.fretNumber,
+            "noteGroup": note.noteGroup
         })
 
 
