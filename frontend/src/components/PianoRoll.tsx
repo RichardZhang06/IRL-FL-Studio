@@ -95,6 +95,13 @@ export default function PianoRoll() {
     }
   }, [playheadX, playing]);
 
+  const getActiveNotes = () => {
+    const currentStep = Math.floor(playheadX / STEP_WIDTH);
+    return notes
+      .filter(note => note.step === currentStep)
+      .map(note => note.pitchName);
+  };
+
   const handleTogglePlay = () => {
     if (playing) {
       stop();
@@ -176,7 +183,10 @@ export default function PianoRoll() {
           playheadX={playheadX}
           numSteps={numSteps}
         />
-        <Fretboard visible={showFretboard} />
+        <Fretboard 
+          visible={showFretboard} 
+          activeNotes={playing ? getActiveNotes() : []}
+        />
       </div>
     </div>
   );

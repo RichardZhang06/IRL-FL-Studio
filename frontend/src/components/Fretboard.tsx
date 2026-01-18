@@ -1,14 +1,21 @@
 // Fretboard.tsx
+import { STRINGS, FRETS, GUITAR_NOTE_MAP } from "../constants";
+
 type FretboardProps = {
   visible: boolean;
+  activeNotes?: string[];
 };
 
-export default function Fretboard({ visible }: FretboardProps) {
-  const strings = 6;
-  const frets = 4;
-  
+export default function Fretboard({ visible, activeNotes = [] }: FretboardProps) {
   if (!visible) return null;
   
+  const activePositions = activeNotes
+    .map(note => {
+        const positions = GUITAR_NOTE_MAP[note];
+        return positions ? positions[0] : null;
+    })
+    .filter(pos => pos !== null);
+
   return (
     <div style={{
       position: "absolute",
@@ -16,7 +23,7 @@ export default function Fretboard({ visible }: FretboardProps) {
       top: 0,
       bottom: 0,
       width: 300,
-      background: "rgba(40, 30, 20, 0.85)",
+      background: "rgba(40, 30, 20, 0.5)",
       backdropFilter: "blur(4px)",
       borderLeft: "2px solid #654321",
       zIndex: 20,
@@ -51,7 +58,7 @@ export default function Fretboard({ visible }: FretboardProps) {
           display: "flex",
           pointerEvents: "auto",
         }}>
-          {Array.from({ length: frets + 1 }).map((_, fretIdx) => (
+          {Array.from({ length: FRETS + 1 }).map((_, fretIdx) => (
             <div
               key={fretIdx}
               style={{
@@ -102,7 +109,7 @@ export default function Fretboard({ visible }: FretboardProps) {
         </div>
 
         {/* Strings */}
-        {Array.from({ length: strings }).map((_, stringIdx) => (
+        {Array.from({ length: STRINGS }).map((_, stringIdx) => (
           <div
             key={stringIdx}
             style={{
@@ -114,6 +121,32 @@ export default function Fretboard({ visible }: FretboardProps) {
             }}
           />
         ))}
+
+        {/* Finger positions for active notes */}
+        {activePositions.map((pos, idx) => {
+          const stringHeight = 100 / (STRINGS - 1); // Percentage spacing
+          const fretWidth = 100 / (FRETS + 1); // Percentage spacing
+          
+          return (
+            <div
+              key={idx}
+              style={{
+                position: "absolute",
+                left: `calc(20px + ${pos.fret * fretWidth}% + ${fretWidth / 2}%)`,
+                top: `${pos.string * stringHeight}%`,
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                background: "#7dff9b",
+                border: "2px solid #fff",
+                transform: "translate(-50%, -50%)",
+                zIndex: 10,
+                boxShadow: "0 0 10px rgba(125, 255, 155, 0.8)",
+                pointerEvents: "auto",
+              }}
+            />
+          );
+        })}
       </div>
     </div>
   );
