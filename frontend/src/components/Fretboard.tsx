@@ -9,26 +9,31 @@ type FretboardProps = {
 export default function Fretboard({ visible, activeNotes = [] }: FretboardProps) {
   if (!visible) return null;
   
-  const activePositions = activeNotes
-    .map(note => {
-        const positions = GUITAR_NOTE_MAP[note];
-        return positions ? positions[0] : null;
-    })
-    .filter(pos => pos !== null);
-
-  // Determine which strings have active notes
-  const activeStrings = new Set(activePositions.map(pos => pos.string));
+  // Constants for layout
+  const FRETBOARD_TOP = 50;
+  const FRETBOARD_BOTTOM = 70;
+  const INDICATOR_TOP = 25;
   
-  // Create array of all strings with their status
-  const stringStatuses = Array.from({ length: STRINGS }).map((_, stringIdx) => {
+  // Get positions for all active notes
+  const activePositions = activeNotes
+    .map(note => GUITAR_NOTE_MAP[note]?.[0])
+    .filter(pos => pos !== null);
+  
+  // Determine status for each string (X if no active note, otherwise the position)
+  const stringStatuses = Array.from({ length: STRINGS }, (_, stringIdx) => {
     const activePos = activePositions.find(pos => pos.string === stringIdx);
-    if (activePos) {
-      return { string: stringIdx, state: activePos.state };
-    } else {
-      // No active note for this string, show X
-      return { string: stringIdx, state: -1 };
-    }
+    return activePos || { string: stringIdx, state: -1 };
   });
+  
+  // Calculate string horizontal position
+  const getStringLeft = (stringIdx: number) => 
+    (stringIdx / (STRINGS - 1)) * 100;
+  
+  // Calculate dot vertical position (centered in fret space)
+  const getDotTop = (state: number) => {
+    const fretSpacePercent = (state - 0.5) / FRETS;
+    return `calc(${FRETBOARD_TOP}px + (100% - ${FRETBOARD_BOTTOM}px) * ${fretSpacePercent})`;
+  };
     
   return (
     <div style={{
@@ -41,7 +46,7 @@ export default function Fretboard({ visible, activeNotes = [] }: FretboardProps)
       backdropFilter: "blur(4px)",
       borderLeft: "2px solid #654321",
       zIndex: 20,
-      padding: "25px 25px",
+      padding: "25px",
       pointerEvents: "none",
     }}>
       <div style={{
@@ -50,7 +55,6 @@ export default function Fretboard({ visible, activeNotes = [] }: FretboardProps)
         color: "#fff",
         marginBottom: 15,
         textAlign: "center",
-        pointerEvents: "auto",
       }}>
         Guitar Fretboard
       </div>
@@ -60,24 +64,22 @@ export default function Fretboard({ visible, activeNotes = [] }: FretboardProps)
         height: "calc(100% - 40px)",
         width: "100%",
       }}>
-        {/* String status indicators (O or X) at top */}
-        {stringStatuses.map((status, idx) => {
-          if (status.state !== 0 && status.state !== -1) return null;
+        {/* String status indicators (O or X) */}
+        {stringStatuses.map((status) => {
+          if (status.state > 0) return null;
           
-          const stringWidth = 100 / (STRINGS - 1);
           return (
             <div
-              key={`indicator-${idx}`}
+              key={`indicator-${status.string}`}
               style={{
                 position: "absolute",
-                left: `${status.string * stringWidth}%`,
-                top: 25,
+                left: `${getStringLeft(status.string)}%`,
+                top: INDICATOR_TOP,
                 transform: "translate(-50%, -50%)",
                 fontSize: 30,
                 fontWeight: 700,
                 color: "#fff",
                 zIndex: 10,
-                pointerEvents: "auto",
               }}
             >
               {status.state === 0 ? "O" : "X"}
@@ -86,65 +88,55 @@ export default function Fretboard({ visible, activeNotes = [] }: FretboardProps)
         })}
         
         {/* Strings (vertical columns) */}
-        {Array.from({ length: STRINGS }).map((_, stringIdx) => {
-          const stringLeft = (stringIdx / (STRINGS - 1)) * 100;
-          return (
-            <div
-              key={stringIdx}
-              style={{
-                position: "absolute",
-                left: `${stringLeft}%`,
-                top: 50,
-                height: `calc(100% - 66px)`,
-                width: 2 + stringIdx * 0.3,
-                background: "#c0c0c0",
-                transform: "translateX(-50%)",
-                zIndex: 1,
-              }}
-            />
-          );
-        })}
+        {Array.from({ length: STRINGS }, (_, stringIdx) => (
+          <div
+            key={`string-${stringIdx}`}
+            style={{
+              position: "absolute",
+              left: `${getStringLeft(stringIdx)}%`,
+              top: FRETBOARD_TOP,
+              height: `calc(100% - ${FRETBOARD_BOTTOM}px)`,
+              width: 2 + stringIdx * 0.3,
+              background: "#c0c0c0",
+              transform: "translateX(-50%)",
+              zIndex: 1,
+            }}
+          />
+        ))}
         
-        {/* Fret markers */}
+        {/* Fret markers (horizontal rows) */}
         <div style={{
           position: "absolute",
           left: 0,
           right: 0,
-          top: 50,
-          height: `calc(100% - 70px)`,
+          top: FRETBOARD_TOP,
+          height: `calc(100% - ${FRETBOARD_BOTTOM}px)`,
           display: "flex",
           flexDirection: "column",
-          pointerEvents: "auto",
-          borderTop: "4px solid #d4af37", 
+          borderTop: "4px solid #d4af37",
         }}>
-          {Array.from({ length: FRETS }).map((_, fretIdx) => (
+          {Array.from({ length: FRETS }, (_, fretIdx) => (
             <div
-              key={fretIdx}
+              key={`fret-${fretIdx}`}
               style={{
                 flex: 1,
                 borderBottom: "2px solid #888",
-                position: "relative",
               }}
             />
-          ))} 
+          ))}
         </div>
         
-        {/* Finger positions for active notes (state 1-4) */}
-        {activePositions.map((pos, idx) => {
-          if (pos.state < 1) return null;
-          
-          const stringWidth = 100 / (STRINGS - 1);
-          
-          const fretSpacePercent = 100 / FRETS;
-          const topPercent = (pos.state - 0.5) * fretSpacePercent;
+        {/* Finger positions (green dots for state 1-4) */}
+        {stringStatuses.map((status) => {
+          if (status.state < 1) return null;
           
           return (
             <div
-              key={`dot-${idx}`}
+              key={`dot-${status.string}`}
               style={{
                 position: "absolute",
-                left: `${pos.string * stringWidth}%`,
-                top: `calc(50px + (100% - 70px) * ${topPercent / 100})`,
+                left: `${getStringLeft(status.string)}%`,
+                top: getDotTop(status.state),
                 width: 20,
                 height: 20,
                 borderRadius: "50%",
@@ -153,7 +145,6 @@ export default function Fretboard({ visible, activeNotes = [] }: FretboardProps)
                 transform: "translate(-50%, -50%)",
                 zIndex: 10,
                 boxShadow: "0 0 10px rgba(125, 255, 155, 0.8)",
-                pointerEvents: "auto",
               }}
             />
           );
