@@ -1,5 +1,5 @@
 // Fretboard.tsx
-import { STRINGS, FRETS, GUITAR_NOTE_MAP, NOTE_GROUPS } from "../constants";
+import { STRINGS, FRETS, GUITAR_NOTE_MAP } from "../constants";
 
 type FretboardProps = {
   visible: boolean;
@@ -51,18 +51,23 @@ export default function Fretboard({ visible, activeNotes = [], playheadX = 0, gr
       width: FRETBOARD_WIDTH,
       background: "rgba(40, 30, 20, 0.5)",
       backdropFilter: "blur(4px)",
-      borderLeft: "2px solid #654321",
       zIndex: 20,
       padding: "25px",
       pointerEvents: "none",
       transition: "right 0.1s ease-out",
     }}>
       <div style={{
-        fontSize: 30,
+        fontSize: 28,
         fontWeight: 700,
-        color: "#fff",
+        background: "linear-gradient(135deg, #d4af37 0%, #f4d03f 50%, #d4af37 100%)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        backgroundClip: "text",
         marginBottom: 15,
         textAlign: "center",
+        filter: "drop-shadow(0 2px 4px rgba(212, 175, 55, 0.5))",
+        letterSpacing: "1px",
+        textTransform: "uppercase",
       }}>
         Guitar Fretboard
       </div>
@@ -76,6 +81,7 @@ export default function Fretboard({ visible, activeNotes = [], playheadX = 0, gr
         {stringStatuses.map((status) => {
           if (status.state > 0) return null;
           
+          const isOpen = status.state === 0;
           return (
             <div
               key={`indicator-${status.string}`}
@@ -84,13 +90,14 @@ export default function Fretboard({ visible, activeNotes = [], playheadX = 0, gr
                 left: `${getStringLeft(status.string)}%`,
                 top: INDICATOR_TOP,
                 transform: "translate(-50%, -50%)",
-                fontSize: 30,
+                fontSize: 36,
                 fontWeight: 700,
-                color: "#fff",
+                color: isOpen ? "#7dff9b" : "#ff6b6b",
                 zIndex: 10,
+                textShadow: `0 0 12px ${isOpen ? "rgba(125, 255, 155, 0.8)" : "rgba(255, 107, 107, 0.8)"}`,
               }}
             >
-              {status.state === 0 ? "O" : "X"}
+              {isOpen ? "O" : "X"}
             </div>
           );
         })}
