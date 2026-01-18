@@ -21,6 +21,15 @@ export const NOTE_GROUPS = [
   ["A♭2", "G2", "F#2", "F2", "E2"]
 ]
 
+// Common chord definitions (major chords)
+export const CHORD_NOTES: Record<string, string[]> = {
+  C: ['C3', 'E3', 'G3', 'C4', 'E4'],
+  A: ['A2', 'E3', 'A3', 'C#4', 'E4'],
+  G: ['G2', 'B2', 'D3', 'G3', 'C4', 'G4'],
+  E: ['E2', 'B2', 'E3', 'A♭3', 'B3', 'E4'],
+  D: ['D3', 'A3', 'D4', 'F#4'],
+};
+
 // Helper function to find which group a note belongs to
 export const findNoteGroup = (pitchName: string): string[] | null => {
   return NOTE_GROUPS.find(group => group.includes(pitchName)) || null;

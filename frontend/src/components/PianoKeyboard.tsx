@@ -18,11 +18,11 @@ export default function PianoKeyboard({ activeNotes = [] }: PianoKeyboardProps) 
             className={`key-row ${isBlack ? "black" : "white"}`}
             style={{
               backgroundColor: isActive 
-                ? (isBlack ? "#2d323a" : "#d8dce4")
+                ? (isBlack ? "#3a4a5a" : "#e8f0ff")
                 : undefined,
               transition: "background-color 0.15s ease",
               boxShadow: isActive 
-                ? "inset 0 0 10px rgba(45, 50, 58, 0.3)" 
+                ? "inset 0 0 10px rgba(90, 157, 232, 0.3)"
                 : undefined,
             }}
           >
