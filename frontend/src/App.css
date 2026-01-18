@@ -160,14 +160,79 @@
   background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
 }
 
-/* Secondary action buttons (grid controls, fretboard, presets) */
-.topbar button:not(.primary):not(.stop):not(.reset):not(.clear) {
-  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+.topbar button.step-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
 }
 
-.topbar button:not(.primary):not(.stop):not(.reset):not(.clear):hover {
-  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+.topbar button.step-btn:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+}
+
+/* Fretboard toggle */
+.topbar button.fretboard-toggle {
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+/* ON = green */
+.topbar button.fretboard-toggle.on {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.topbar button.fretboard-toggle.on:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+}
+
+/* OFF = slate */
+.topbar button.fretboard-toggle.off {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+}
+
+.topbar button.fretboard-toggle.off:hover {
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+}
+
+/* Step control wrapper */
+.topbar .step-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: #f3f4f6; /* light gray background for box */
+  border: 1px solid #d1d5db; /* subtle border */
+  border-radius: 8px;
+}
+
+/* Number display in the middle */
+.topbar .step-control .step-count {
+  padding: 4px 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #111827;
+  background: #ffffff; /* white box behind number */
+  border-radius: 4px;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Step buttons inside the box remain the same */
+.topbar .step-control .step-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  transition: background 0.2s ease;
+}
+
+.topbar .step-control .step-btn:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
 }
 
 /* =========================

@@ -22,7 +22,7 @@ export type Note = {
 export default function PianoRoll() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [playing, setPlaying] = useState(false);
-  const [bpm, setBpm] = useState(120);
+  const [bpm, setBpm] = useState(80);
   const [playheadX, setPlayheadX] = useState(0);
   const [numSteps, setNumSteps] = useState(Math.max(MIN_NOTES, INITIAL_NUM_STEPS));
   const [showFretboard, setShowFretboard] = useState(true);
