@@ -1,6 +1,6 @@
 // Grid.tsx
 import { forwardRef, useState } from "react";
-import { STEP_WIDTH, CUSTOM_NOTES, NOTE_GROUPS } from "../constants";
+import { STEP_WIDTH, CUSTOM_NOTES, NOTE_GROUPS, CHORD_NOTES } from "../constants";
 import NoteBlock from "./NoteBlock";
 
 type Note = {
@@ -16,15 +16,6 @@ type GridProps = {
   playheadX: number;
   numSteps: number;
   activeNotes?: string[];
-};
-
-// Common chord definitions (major chords)
-const CHORD_NOTES: Record<string, string[]> = {
-  C: ['C3', 'E3', 'G3'],
-  A: ['A2', 'C#3', 'E3'],
-  G: ['G2', 'B2', 'D3'],
-  E: ['E2', 'G#2', 'B2'],
-  D: ['D3', 'F#3', 'A3'],
 };
 
 const Grid = forwardRef<HTMLDivElement, GridProps>(({
