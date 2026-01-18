@@ -15,6 +15,7 @@ type GridProps = {
   deleteNote: (id: number) => void;
   playheadX: number;
   numSteps: number;
+  activeNotes?: string [];
 };
 
 const Grid = forwardRef<HTMLDivElement, GridProps>(({
@@ -23,6 +24,7 @@ const Grid = forwardRef<HTMLDivElement, GridProps>(({
   deleteNote,
   playheadX,
   numSteps,
+  activeNotes = []
 }, ref) => {
   const numRows = CUSTOM_NOTES.length;
   const gridWidth = numSteps * STEP_WIDTH;
@@ -82,6 +84,7 @@ const Grid = forwardRef<HTMLDivElement, GridProps>(({
           const isGroupBoundary = NOTE_GROUPS.some(group => 
             group[0] === noteName && rowIndex > 0
           );
+          const isActive = activeNotes.includes(noteName);
 
           return (
             <div
@@ -91,9 +94,15 @@ const Grid = forwardRef<HTMLDivElement, GridProps>(({
                 position: "relative",
                 width: "100%",
                 height: "100%",
-                backgroundColor: isEvenRow ? "#2a2a2a" : "#252525",
+                backgroundColor: isActive 
+                  ? (isEvenRow ? "#2d323a" : "#2d323a")
+                  : isEvenRow 
+                    ? "#2a2a2a" 
+                    : "#252525",
                 backgroundImage: `linear-gradient(to right, #444 1px, transparent 1px)`,
                 backgroundSize: `${STEP_WIDTH}px 100%`,
+                transition: "background-color 0.1s ease",
+                boxShadow: isActive ? "inset 0 0 15px rgba(125, 255, 155, 0.08)" : "none",
               }}
             >
               {isGroupBoundary && (

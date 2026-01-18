@@ -77,29 +77,50 @@ export default function Fretboard({ visible, activeNotes = [], playheadX = 0, gr
         height: "calc(100% - 40px)",
         width: "100%",
       }}>
-        {/* String status indicators (O or X) */}
+        {/* String status indicators (X for muted, circles for open) */}
         {stringStatuses.map((status) => {
-          if (status.state > 0) return null;
-          
-          const isOpen = status.state === 0;
-          return (
+        const isMuted = status.state === -1;
+        const isOpen = status.state === 0;
+  
+        // Only show indicators for muted or open strings
+        if (!isMuted && !isOpen) return null;
+  
+        // Find the note name for open strings
+        const noteName = isOpen ? activeNotes.find(note => {
+            const pos = GUITAR_NOTE_MAP[note]?.[0];
+            return pos && pos.string === status.string && pos.state === 0;
+        }) : null;
+  
+        // Don't show open string indicator if no note is playing
+        if (isOpen && !noteName) return null;
+  
+        return (
             <div
-              key={`indicator-${status.string}`}
-              style={{
+            key={`indicator-${status.string}`}
+            style={{
                 position: "absolute",
                 left: `${getStringLeft(status.string)}%`,
                 top: INDICATOR_TOP,
                 transform: "translate(-50%, -50%)",
-                fontSize: 36,
-                fontWeight: 700,
-                color: isOpen ? "#7dff9b" : "#ff6b6b",
+                width: isMuted ? "auto" : 40,
+                height: isMuted ? "auto" : 40,
+                borderRadius: isMuted ? "0" : "50%",
+                background: isMuted ? "transparent" : "rgba(110, 166, 229, 0.8)",
+                border: isMuted ? "none" : "2px solid #fff",
                 zIndex: 10,
-                textShadow: `0 0 12px ${isOpen ? "rgba(125, 255, 155, 0.8)" : "rgba(255, 107, 107, 0.8)"}`,
-              }}
+                boxShadow: isMuted ? "none" : "0 0 10px rgba(110, 166, 229, 0.8)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: isMuted ? 36 : 14,
+                fontWeight: 700,
+                color: isMuted ? "#ff6b6b" : "#1a1a1a",
+                textShadow: isMuted ? "0 0 12px rgba(255, 107, 107, 0.8)" : "none",
+            }}
             >
-              {isOpen ? "O" : "X"}
+            {isMuted ? "x" : noteName}
             </div>
-          );
+        );
         })}
         
         {/* Strings (vertical columns) */}
@@ -144,6 +165,12 @@ export default function Fretboard({ visible, activeNotes = [], playheadX = 0, gr
         {/* Finger positions (green dots for state 1-4) */}
         {stringStatuses.map((status) => {
           if (status.state < 1) return null;
+
+          // Find the note name for this position
+          const noteName = activeNotes.find(note => {
+              const pos = GUITAR_NOTE_MAP[note]?.[0];
+              return pos && pos.string === status.string && pos.state === status.state;
+          });
           
           return (
             <div
@@ -152,16 +179,24 @@ export default function Fretboard({ visible, activeNotes = [], playheadX = 0, gr
                 position: "absolute",
                 left: `${getStringLeft(status.string)}%`,
                 top: getDotTop(status.state),
-                width: 20,
-                height: 20,
+                width: 40,
+                height: 40,
                 borderRadius: "50%",
-                background: "#7dff9b",
+                background: "rgba(110, 166, 229, 0.8)",
                 border: "2px solid #fff",
                 transform: "translate(-50%, -50%)",
                 zIndex: 10,
-                boxShadow: "0 0 10px rgba(125, 255, 155, 0.8)",
+                boxShadow: "0 0 10px rgba(110, 166, 229, 0.8)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+                fontWeight: 700,
+                color: "#1a1a1a",
               }}
-            />
+            >
+              {noteName}
+            </div>
           );
         })}
       </div>

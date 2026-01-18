@@ -1,5 +1,5 @@
 // PianoRoll.tsx
-import { useEffect, useRef, useState } from "react";
+import { act, useEffect, useRef, useState } from "react";
 import { 
   STEP_WIDTH, 
   NUM_STEPS as INITIAL_NUM_STEPS, 
@@ -161,7 +161,7 @@ export default function PianoRoll() {
         onToggleFretboard={() => setShowFretboard(!showFretboard)}
       />
       <div className="piano-roll" style={{ display: "flex", flex: 1, position: "relative" }}>
-        <PianoKeyboard />
+        <PianoKeyboard activeNotes={activeNotes} />
         <Grid
           ref={gridRef}
           notes={notes}
@@ -169,6 +169,7 @@ export default function PianoRoll() {
           deleteNote={deleteNote}
           playheadX={playheadX}
           numSteps={numSteps}
+          activeNotes={activeNotes}
         />
         <Fretboard 
           visible={showFretboard} 
