@@ -13,12 +13,12 @@ export const CUSTOM_NOTES = [
 ];
 
 export const NOTE_GROUPS = [
-  ["A♭4", "G4", "F#4", "F4", "E4"],
-  ["E♭4", "D4", "C#4", "C4", "B3"],
-  ["B♭3", "A3", "A♭3", "G3"],
-  ["F#3", "F3", "E3", "E♭3", "D3"],
-  ["C#3", "C3", "B2", "B♭2", "A2"],
-  ["A♭2", "G2", "F#2", "F2", "E2"]
+  ["E♭4", "D4", "C#4", "C4", "B3"], // String 0
+  ["A♭4", "G4", "F#4", "F4", "E4"], // String 1
+  ["F#3", "F3", "E3", "E♭3", "D3"], // String 2
+  ["B♭3", "A3", "A♭3", "G3"], // String 3
+  ["C#3", "C3", "B2", "B♭2", "A2"], // String 4
+  ["A♭2", "G2", "F#2", "F2", "E2"] // String 5
 ]
 
 // Common chord definitions (major chords)
