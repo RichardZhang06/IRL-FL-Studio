@@ -1,6 +1,6 @@
 // PianoRoll.tsx
 import { useEffect, useRef, useState } from "react";
-import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS, findNoteGroup, BEATS_AHEAD } from "../constants";
+import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS, findNoteGroup, BEATS_AHEAD, MIN_NOTES } from "../constants";
 import PianoKeyboard from "./PianoKeyboard";
 import Fretboard from "./Fretboard";
 import Grid from "./Grid";
@@ -18,8 +18,8 @@ export default function PianoRoll() {
   const [playing, setPlaying] = useState(false);
   const [bpm, setBpm] = useState(120);
   const [playheadX, setPlayheadX] = useState(0);
-  const [numSteps, setNumSteps] = useState(Math.max(64, INITIAL_NUM_STEPS));
-  const [showFretboard, setShowFretboard] = useState(false);
+  const [numSteps, setNumSteps] = useState(Math.max(MIN_NOTES, INITIAL_NUM_STEPS));
+  const [showFretboard, setShowFretboard] = useState(true);
 
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
@@ -33,7 +33,6 @@ export default function PianoRoll() {
     const noteGroup = findNoteGroup(pitchName);
   
     setNotes((prev) => {
-      // If this note belongs to a group, remove any other notes in the same group at this step
       let filteredNotes = prev;
       if (noteGroup) {
         filteredNotes = prev.filter(note => 
@@ -123,7 +122,7 @@ export default function PianoRoll() {
   };
 
   const handleAdjustSteps = (delta: number) => {
-    setNumSteps((prev) => Math.max(64, prev + delta)); 
+    setNumSteps((prev) => Math.max(MIN_NOTES, prev + delta)); 
   };
 
   const handleSavePreset = () => {

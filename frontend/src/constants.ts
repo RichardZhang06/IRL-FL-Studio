@@ -2,6 +2,7 @@
 
 export const STRINGS = 6;
 export const FRETS = 4;
+export const MIN_NOTES = 64;
 
 export const STEP_WIDTH = 32;
 export const NUM_STEPS = 64;

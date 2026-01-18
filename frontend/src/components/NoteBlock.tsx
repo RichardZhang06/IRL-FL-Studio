@@ -28,7 +28,7 @@ export default function NoteBlock({ note, onDelete }: Props) {
         top: 0,
         width: STEP_WIDTH,
         height: "100%",
-        background: "#7dff9b",
+        background: "#6ea6e5",
         borderRadius: 4,
         cursor: "pointer",
       }}
