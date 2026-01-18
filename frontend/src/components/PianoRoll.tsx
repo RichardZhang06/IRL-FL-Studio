@@ -56,6 +56,8 @@ export default function PianoRoll() {
       .map(note => note.pitchName);
   };
 
+  const activeNotes = getActiveNotes();
+
   const handleTogglePlay = () => {
     if (playing) {
       stop();
@@ -173,7 +175,7 @@ export default function PianoRoll() {
         />
         <Fretboard 
           visible={showFretboard} 
-          activeNotes={playing ? getActiveNotes() : []}
+          activeNotes={activeNotes}
         />
       </div>
     </div>
