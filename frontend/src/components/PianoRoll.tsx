@@ -1,6 +1,12 @@
 // PianoRoll.tsx
 import { useEffect, useRef, useState } from "react";
-import { STEP_WIDTH, NUM_STEPS as INITIAL_NUM_STEPS, findNoteGroup, BEATS_AHEAD, MIN_NOTES } from "../constants";
+import { 
+  STEP_WIDTH, 
+  NUM_STEPS as INITIAL_NUM_STEPS, 
+  findNoteGroup, 
+  BEATS_AHEAD, 
+  MIN_NOTES 
+} from "../constants";
 import PianoKeyboard from "./PianoKeyboard";
 import Fretboard from "./Fretboard";
 import Grid from "./Grid";
@@ -26,73 +32,22 @@ export default function PianoRoll() {
   const nextId = useRef(1);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Connect to backend
   const { play, stop } = useNotesWebSocket();
 
   const addNote = (pitchName: string, step: number) => {
     const noteGroup = findNoteGroup(pitchName);
-  
     setNotes((prev) => {
-      let filteredNotes = prev;
-      if (noteGroup) {
-        filteredNotes = prev.filter(note => 
-          !(note.step === step && noteGroup.includes(note.pitchName))
-        );
-      }
-    
-      return [
-        ...filteredNotes,
-        { id: nextId.current++, pitchName, step },
-      ];
+      const filteredNotes = noteGroup
+        ? prev.filter(note => !(note.step === step && noteGroup.includes(note.pitchName)))
+        : prev;
+      
+      return [...filteredNotes, { id: nextId.current++, pitchName, step }];
     });
   };
 
   const deleteNote = (id: number) => {
     setNotes((prev) => prev.filter((n) => n.id !== id));
   };
-
-  useEffect(() => {
-    if (!playing) {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      lastTimeRef.current = null;
-      return;
-    }
-
-    const pixelsPerSecond = (bpm / 60) * STEP_WIDTH;
-    const maxPlayheadX = numSteps * STEP_WIDTH; 
-
-    const tick = (time: number) => {
-      if (lastTimeRef.current == null) lastTimeRef.current = time;
-
-      const deltaSeconds = (time - lastTimeRef.current) / 1000;
-      lastTimeRef.current = time;
-
-      setPlayheadX((x) => {
-        const newX = x + deltaSeconds * pixelsPerSecond;
-        // Wrap around when reaching the end
-        return newX >= maxPlayheadX ? 0 : newX;
-      });
-
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [playing, bpm, numSteps]);
-  
-  useEffect(() => {
-    if (gridRef.current && playing) {
-      const beatsAhead = BEATS_AHEAD; 
-      const scrollTarget = playheadX - (beatsAhead * STEP_WIDTH);
-      gridRef.current.scrollLeft = Math.max(0, scrollTarget);
-    }
-  }, [playheadX, playing]);
 
   const getActiveNotes = () => {
     const currentStep = Math.floor(playheadX / STEP_WIDTH);
@@ -122,41 +77,75 @@ export default function PianoRoll() {
   };
 
   const handleAdjustSteps = (delta: number) => {
-    setNumSteps((prev) => Math.max(MIN_NOTES, prev + delta)); 
+    setNumSteps((prev) => Math.max(MIN_NOTES, prev + delta));
   };
 
   const handleSavePreset = () => {
-    const preset = {
-      notes,
-      bpm,
-      numSteps,
-    };
-  
-    // Save to localStorage
+    const preset = { notes, bpm, numSteps };
     localStorage.setItem('pianoRollPreset', JSON.stringify(preset));
     alert('Preset saved!');
   };
 
   const handleLoadPreset = () => {
     const saved = localStorage.getItem('pianoRollPreset');
-    if (saved) {
-      const preset = JSON.parse(saved);
-      setNotes(preset.notes);
-      setBpm(preset.bpm);
-      setNumSteps(preset.numSteps);
-    
-      // Update nextId to avoid conflicts
-      const maxId = preset.notes.reduce((max: number, note: Note) => 
-        Math.max(max, note.id), 0);
-      nextId.current = maxId + 1;
-    
-      alert('Preset loaded!');
-    } else {
+    if (!saved) {
       alert('No preset found!');
+      return;
     }
+
+    const preset = JSON.parse(saved);
+    setNotes(preset.notes);
+    setBpm(preset.bpm);
+    setNumSteps(preset.numSteps);
+
+    const maxId = preset.notes.reduce((max: number, note: Note) => 
+      Math.max(max, note.id), 0);
+    nextId.current = maxId + 1;
+
+    alert('Preset loaded!');
   };
 
-    return (
+  // Playhead animation
+  useEffect(() => {
+    if (!playing) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      lastTimeRef.current = null;
+      return;
+    }
+
+    const pixelsPerSecond = (bpm / 60) * STEP_WIDTH;
+    const maxPlayheadX = numSteps * STEP_WIDTH;
+
+    const tick = (time: number) => {
+      if (lastTimeRef.current == null) lastTimeRef.current = time;
+
+      const deltaSeconds = (time - lastTimeRef.current) / 1000;
+      lastTimeRef.current = time;
+
+      setPlayheadX((x) => {
+        const newX = x + deltaSeconds * pixelsPerSecond;
+        return newX >= maxPlayheadX ? 0 : newX;
+      });
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [playing, bpm, numSteps]);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (gridRef.current && playing) {
+      const scrollTarget = playheadX - (BEATS_AHEAD * STEP_WIDTH);
+      gridRef.current.scrollLeft = Math.max(0, scrollTarget);
+    }
+  }, [playheadX, playing]);
+
+  return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <TopBar
         playing={playing}
