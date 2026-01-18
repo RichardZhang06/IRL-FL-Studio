@@ -85,7 +85,6 @@ export default function PianoRoll() {
   const handleSavePreset = () => {
     const preset = { notes, bpm, numSteps };
     localStorage.setItem('pianoRollPreset', JSON.stringify(preset));
-    alert('Preset saved!');
   };
 
   const handleLoadPreset = () => {
@@ -103,8 +102,6 @@ export default function PianoRoll() {
     const maxId = preset.notes.reduce((max: number, note: Note) => 
       Math.max(max, note.id), 0);
     nextId.current = maxId + 1;
-
-    alert('Preset loaded!');
   };
 
   // Playhead animation

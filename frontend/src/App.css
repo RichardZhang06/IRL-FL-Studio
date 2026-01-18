@@ -2,7 +2,6 @@
 /* =========================
    Layout
 ========================= */
-
 .piano-roll {
   display: flex;
   height: 100vh;
@@ -12,7 +11,6 @@
 /* =========================
    Keyboard
 ========================= */
-
 .keyboard {
   width: 100px;
   height: 100%;
@@ -59,15 +57,15 @@
 /* =========================
    Top Bar
 ========================= */
-
 .topbar {
   height: 60px;
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 0 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #fafafa;
+  border-bottom: 2px solid #e5e7eb;
+  background: linear-gradient(to bottom, #ffffff, #f9fafb);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .topbar .transport {
@@ -75,82 +73,180 @@
   gap: 8px;
 }
 
-/* Buttons */
-
+/* =========================
+   Buttons - Base Styles
+========================= */
 .topbar button {
-  padding: 8px 18px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  background: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
   font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.topbar button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.topbar button:hover::before {
+  width: 300px;
+  height: 300px;
 }
 
 .topbar button:hover {
-  filter: brightness(0.95);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
 }
 
 .topbar button:active {
-  transform: scale(0.97);
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+/* =========================
+   Button Variants
+========================= */
 .topbar button.primary {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
 }
 
+.topbar button.primary:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
 .topbar button.stop {
-  background: #f3f4f6;
-  color: #111;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+}
+
+.topbar button.stop:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
 }
 
 .topbar button.reset {
-  background: #f9fafb;
-  border-color: #d1d5db;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: #fff;
+}
+
+.topbar button.reset:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
 }
 
 .topbar button.clear {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #991b1b;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #fff;
 }
 
 .topbar button.clear:hover {
-  background: #fecaca;
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+}
+
+/* Secondary action buttons (grid controls, fretboard, presets) */
+.topbar button:not(.primary):not(.stop):not(.reset):not(.clear) {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  color: #fff;
+}
+
+.topbar button:not(.primary):not(.stop):not(.reset):not(.clear):hover {
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
 }
 
 /* =========================
    BPM
 ========================= */
-
 .topbar .bpm {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-left: 24px;
+  padding: 8px 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
 }
 
 .topbar .bpm span {
-  font-weight: 800;
+  font-weight: 700;
+  color: #374151;
 }
 
 .topbar .bpm-value {
-  width: 36px;
+  width: 40px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.topbar .bpm input[type="range"] {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: #e5e7eb;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.topbar .bpm input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.topbar .bpm input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.topbar .bpm input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.topbar .bpm input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.2);
 }
 
 /* =========================
    Title
 ========================= */
-
 .topbar .title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
-  letter-spacing: 0.8px;
-  background: linear-gradient(90deg, #2563eb, #22c55e);
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #2563eb, #22c55e, #f59e0b);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }

@@ -4,15 +4,22 @@ import { STRINGS, FRETS, GUITAR_NOTE_MAP, NOTE_GROUPS } from "../constants";
 type FretboardProps = {
   visible: boolean;
   activeNotes?: string[];
+  playheadX?: number;
+  gridWidth?: number;
 };
 
-export default function Fretboard({ visible, activeNotes = [] }: FretboardProps) {
+export default function Fretboard({ visible, activeNotes = [], playheadX = 0, gridWidth = 0 }: FretboardProps) {
   if (!visible) return null;
   
   // Constants for layout
+  const FRETBOARD_WIDTH = 300;
   const FRETBOARD_TOP = 50;
-  const FRETBOARD_BOTTOM = 70;
+  const FRETBOARD_BOTTOM = 50; // Changed from 70 to 50
   const INDICATOR_TOP = 25;
+  
+  // Calculate horizontal offset to push fretboard off-screen when playhead is at the right
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+  const rightOffset = Math.max(0, playheadX - (viewportWidth - FRETBOARD_WIDTH));
   
   // Get positions for all active notes
   const activePositions = activeNotes
@@ -38,19 +45,20 @@ export default function Fretboard({ visible, activeNotes = [] }: FretboardProps)
   return (
     <div style={{
       position: "absolute",
-      right: 0,
+      right: -rightOffset,
       top: 0,
       bottom: 0,
-      width: 300,
+      width: FRETBOARD_WIDTH,
       background: "rgba(40, 30, 20, 0.5)",
       backdropFilter: "blur(4px)",
       borderLeft: "2px solid #654321",
       zIndex: 20,
       padding: "25px",
       pointerEvents: "none",
+      transition: "right 0.1s ease-out",
     }}>
       <div style={{
-        fontSize: 16,
+        fontSize: 30,
         fontWeight: 700,
         color: "#fff",
         marginBottom: 15,
@@ -96,7 +104,7 @@ export default function Fretboard({ visible, activeNotes = [] }: FretboardProps)
               left: `${getStringLeft(stringIdx)}%`,
               top: FRETBOARD_TOP,
               height: `calc(100% - ${FRETBOARD_BOTTOM}px)`,
-              width: 2 + stringIdx * 0.3,
+              width: 2 + stringIdx * 0.7,
               background: "#c0c0c0",
               transform: "translateX(-50%)",
               zIndex: 1,
